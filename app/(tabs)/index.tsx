@@ -1,98 +1,108 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useContext, useState } from 'react';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ApplicationsContext } from './_layout';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function ApplicationsScreen() {
+  const { applications, setApplications } = useContext(ApplicationsContext);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [company, setCompany] = useState('');
+  const [role, setRole] = useState('');
+  const [dateApplied, setDateApplied] = useState('');
+  const [status, setStatus] = useState('Applied');
 
-export default function HomeScreen() {
+  const statuses = ['Not Yet Open', 'Applied', 'Interview', 'Offer', 'Rejected'];
+
+  const handleAdd = () => {
+    if (!company || !role) {
+      Alert.alert('Missing Info', 'Please enter at least a company and role.');
+      return;
+    }
+    setApplications([...applications, { company, role, dateApplied, status }]);
+    setCompany('');
+    setRole('');
+    setDateApplied('');
+    setStatus('Applied');
+    setModalVisible(false);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      <Text style={styles.header}>My Applications</Text>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <ScrollView>
+        {applications.length === 0 ? (
+          <Text style={styles.empty}>No applications yet. Add one below!</Text>
+        ) : (
+          applications.map((app, index) => (
+            <View key={index} style={styles.card}>
+              <Text style={styles.company}>{app.company}</Text>
+              <Text style={styles.role}>{app.role}</Text>
+              <Text style={styles.status}>{app.status}</Text>
+              {app.dateApplied ? <Text style={styles.date}>Applied: {app.dateApplied}</Text> : null}
+            </View>
+          ))
+        )}
+      </ScrollView>
+
+      <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
+        <Text style={styles.addButtonText}>+ Add Application</Text>
+      </TouchableOpacity>
+
+      <Modal visible={modalVisible} animationType="slide">
+        <View style={styles.modalContainer}>
+          <Text style={styles.modalHeader}>New Application</Text>
+
+          <TextInput style={styles.input} placeholder="Company name" placeholderTextColor="#6B7280" value={company} onChangeText={setCompany} />
+          <TextInput style={styles.input} placeholder="Role / Position" placeholderTextColor="#6B7280" value={role} onChangeText={setRole} />
+          <TextInput style={styles.input} placeholder="Date Applied (e.g. Apr 16, 2026)" placeholderTextColor="#6B7280" value={dateApplied} onChangeText={setDateApplied} />
+
+          <Text style={styles.label}>Status:</Text>
+          <View style={styles.statusList}>
+            {statuses.map((s) => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.statusOption, status === s && styles.statusOptionActive]}
+                onPress={() => setStatus(s)}>
+                <Text style={[styles.statusOptionText, status === s && styles.statusOptionTextActive]}>{s}</Text>
+                {status === s && <Text style={styles.checkmark}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+            <Text style={styles.addButtonText}>Save Application</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  container: { flex: 1, backgroundColor: 'white', padding: 20 },
+  header: { fontSize: 28, fontWeight: 'bold', marginTop: 50, marginBottom: 20 },
+  empty: { color: 'gray', textAlign: 'center', marginTop: 50 },
+  card: { backgroundColor: '#F3F4F6', padding: 15, borderRadius: 10, marginBottom: 10 },
+  company: { fontSize: 18, fontWeight: 'bold' },
+  role: { fontSize: 14, color: '#4B5563', marginTop: 2 },
+  status: { fontSize: 12, color: '#4F46E5', fontWeight: 'bold', marginTop: 5 },
+  date: { fontSize: 12, color: 'gray', marginTop: 2 },
+  addButton: { backgroundColor: '#4F46E5', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  addButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  modalContainer: { flex: 1, padding: 25, backgroundColor: 'white', marginTop: 60 },
+  modalHeader: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
+  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, marginBottom: 15, fontSize: 16 },
+  label: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
+  statusList: { marginBottom: 20 },
+  statusOption: { padding: 14, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statusOptionActive: { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' },
+  statusOptionText: { fontSize: 15, color: '#4B5563' },
+  statusOptionTextActive: { color: '#4F46E5', fontWeight: 'bold' },
+  checkmark: { color: '#4F46E5', fontWeight: 'bold', fontSize: 16 },
+  cancelButton: { alignItems: 'center', marginTop: 10 },
+  cancelText: { color: 'gray', fontSize: 16 },
 });
