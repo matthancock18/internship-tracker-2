@@ -1,5 +1,7 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useContext, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { ApplicationsContext } from './_layout';
 
 export default function EmailsScreen() {
@@ -12,6 +14,38 @@ export default function EmailsScreen() {
   const [coffeeChat, setCoffeeChat] = useState('No');
   const [followUpDate, setFollowUpDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [dateSentPickerVisible, setDateSentPickerVisible] = useState(false);
+  const [followUpPickerVisible, setFollowUpPickerVisible] = useState(false);
+  const [selectedDateSent, setSelectedDateSent] = useState(new Date());
+  const [selectedFollowUp, setSelectedFollowUp] = useState(new Date());
+
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const handleDateSentChange = (event, date) => {
+    if (event.type === 'dismissed') {
+      setDateSentPickerVisible(false);
+      return;
+    }
+    if (date) {
+      setSelectedDateSent(date);
+      setDateSent(formatDate(date));
+    }
+    if (Platform.OS === 'android') setDateSentPickerVisible(false);
+  };
+
+  const handleFollowUpChange = (event, date) => {
+    if (event.type === 'dismissed') {
+      setFollowUpPickerVisible(false);
+      return;
+    }
+    if (date) {
+      setSelectedFollowUp(date);
+      setFollowUpDate(formatDate(date));
+    }
+    if (Platform.OS === 'android') setFollowUpPickerVisible(false);
+  };
 
   const handleAdd = () => {
     if (!company) {
@@ -28,6 +62,26 @@ export default function EmailsScreen() {
     setNotes('');
     setModalVisible(false);
   };
+
+  const handleDelete = (index) => {
+    Alert.alert(
+      'Delete Email',
+      'Are you sure you want to delete this email?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => {
+          setEmails(emails.filter((_, i) => i !== index));
+        }},
+      ]
+    );
+  };
+
+  const renderRightActions = (index) => (
+    <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(index)}>
+      <Text style={styles.deleteText}>🗑️</Text>
+      <Text style={styles.deleteLabel}>Delete</Text>
+    </TouchableOpacity>
+  );
 
   const YesNoToggle = ({ label, value, onChange }) => (
     <View style={styles.toggleRow}>
@@ -56,21 +110,25 @@ export default function EmailsScreen() {
           <Text style={styles.empty}>No emails logged yet. Add one below!</Text>
         ) : (
           emails.map((email, index) => (
-            <View key={index} style={styles.card}>
-              <Text style={styles.company}>{email.company}</Text>
-              {email.contactName ? <Text style={styles.contact}>To: {email.contactName}</Text> : null}
-              {email.dateSent ? <Text style={styles.detail}>Sent: {email.dateSent}</Text> : null}
-              <View style={styles.tagRow}>
-                <View style={[styles.tag, email.response === 'Yes' && styles.tagGreen]}>
-                  <Text style={styles.tagText}>Response: {email.response}</Text>
+            <Swipeable
+              key={index}
+              renderRightActions={() => renderRightActions(index)}>
+              <View style={styles.card}>
+                <Text style={styles.company}>{email.company}</Text>
+                {email.contactName ? <Text style={styles.contact}>To: {email.contactName}</Text> : null}
+                {email.dateSent ? <Text style={styles.detail}>Sent: {email.dateSent}</Text> : null}
+                <View style={styles.tagRow}>
+                  <View style={[styles.tag, email.response === 'Yes' && styles.tagGreen]}>
+                    <Text style={styles.tagText}>Response: {email.response}</Text>
+                  </View>
+                  <View style={[styles.tag, email.coffeeChat === 'Yes' && styles.tagGreen]}>
+                    <Text style={styles.tagText}>Coffee Chat: {email.coffeeChat}</Text>
+                  </View>
                 </View>
-                <View style={[styles.tag, email.coffeeChat === 'Yes' && styles.tagGreen]}>
-                  <Text style={styles.tagText}>Coffee Chat: {email.coffeeChat}</Text>
-                </View>
+                {email.followUpDate ? <Text style={styles.detail}>Follow up: {email.followUpDate}</Text> : null}
+                {email.notes ? <Text style={styles.notes}>{email.notes}</Text> : null}
               </View>
-              {email.followUpDate ? <Text style={styles.detail}>Follow up: {email.followUpDate}</Text> : null}
-              {email.notes ? <Text style={styles.notes}>{email.notes}</Text> : null}
-            </View>
+            </Swipeable>
           ))
         )}
       </ScrollView>
@@ -85,8 +143,53 @@ export default function EmailsScreen() {
 
           <TextInput style={styles.input} placeholder="Company name" placeholderTextColor="#6B7280" value={company} onChangeText={setCompany} />
           <TextInput style={styles.input} placeholder="Contact name (optional)" placeholderTextColor="#6B7280" value={contactName} onChangeText={setContactName} />
-          <TextInput style={styles.input} placeholder="Date sent (e.g. Apr 16, 2026)" placeholderTextColor="#6B7280" value={dateSent} onChangeText={setDateSent} />
-          <TextInput style={styles.input} placeholder="Follow up date (optional)" placeholderTextColor="#6B7280" value={followUpDate} onChangeText={setFollowUpDate} />
+
+          <Text style={styles.label}>Date Sent:</Text>
+          <TouchableOpacity style={styles.dateInput} onPress={() => setDateSentPickerVisible(true)}>
+            <Text style={dateSent ? styles.dateText : styles.datePlaceholder}>
+              {dateSent || 'Select a date (optional)'}
+            </Text>
+          </TouchableOpacity>
+          {dateSentPickerVisible && (
+            <View>
+              <DateTimePicker
+                value={selectedDateSent}
+                mode="date"
+                display="spinner"
+                onChange={handleDateSentChange}
+                textColor="#111827"
+              />
+              <TouchableOpacity
+                style={styles.dateConfirmButton}
+                onPress={() => setDateSentPickerVisible(false)}>
+                <Text style={styles.dateConfirmText}>✓ Confirm Date</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <Text style={styles.label}>Follow Up Date:</Text>
+          <TouchableOpacity style={styles.dateInput} onPress={() => setFollowUpPickerVisible(true)}>
+            <Text style={followUpDate ? styles.dateText : styles.datePlaceholder}>
+              {followUpDate || 'Select a date (optional)'}
+            </Text>
+          </TouchableOpacity>
+          {followUpPickerVisible && (
+            <View>
+              <DateTimePicker
+                value={selectedFollowUp}
+                mode="date"
+                display="spinner"
+                onChange={handleFollowUpChange}
+                textColor="#111827"
+              />
+              <TouchableOpacity
+                style={styles.dateConfirmButton}
+                onPress={() => setFollowUpPickerVisible(false)}>
+                <Text style={styles.dateConfirmText}>✓ Confirm Date</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <TextInput style={[styles.input, styles.notesInput]} placeholder="Notes (optional)" placeholderTextColor="#6B7280" value={notes} onChangeText={setNotes} multiline />
 
           <YesNoToggle label="Got a response?" value={response} onChange={setResponse} />
@@ -112,6 +215,9 @@ const styles = StyleSheet.create({
   header: { fontSize: 28, fontWeight: 'bold', marginTop: 50, marginBottom: 20 },
   empty: { color: 'gray', textAlign: 'center', marginTop: 50 },
   card: { backgroundColor: '#F3F4F6', padding: 15, borderRadius: 10, marginBottom: 10 },
+  deleteButton: { backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: 10, marginBottom: 10 },
+  deleteText: { fontSize: 22 },
+  deleteLabel: { fontSize: 12, color: '#EF4444', fontWeight: 'bold' },
   company: { fontSize: 18, fontWeight: 'bold' },
   contact: { fontSize: 14, color: '#4B5563', marginTop: 2 },
   detail: { fontSize: 12, color: 'gray', marginTop: 4 },
@@ -126,6 +232,12 @@ const styles = StyleSheet.create({
   modalHeader: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
   input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, marginBottom: 15, fontSize: 16 },
   notesInput: { height: 100, textAlignVertical: 'top' },
+  label: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
+  dateInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, marginBottom: 15 },
+  dateText: { fontSize: 16, color: '#111827' },
+  datePlaceholder: { fontSize: 16, color: '#6B7280' },
+  dateConfirmButton: { backgroundColor: '#4F46E5', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 15 },
+  dateConfirmText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   toggleLabel: { fontSize: 15, color: '#374151', fontWeight: '500' },
   toggleButtons: { flexDirection: 'row', gap: 8 },
