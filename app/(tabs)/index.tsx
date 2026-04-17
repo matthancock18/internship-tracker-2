@@ -16,6 +16,14 @@ export default function ApplicationsScreen() {
 
   const statuses = ['Not Yet Open', 'Applied', 'Interview', 'Offer', 'Rejected'];
 
+  const statusColors = {
+    'Not Yet Open': '#64748B',
+    'Applied': '#0EA5E9',
+    'Interview': '#F59E0B',
+    'Offer': '#10B981',
+    'Rejected': '#EF4444',
+  };
+
   const formatDate = (date) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
@@ -68,21 +76,32 @@ export default function ApplicationsScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>My Applications</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.appName}>App Trax</Text>
+        <Text style={styles.header}>Applications</Text>
+      </View>
 
-      <ScrollView>
+      <ScrollView style={styles.scrollView}>
         {applications.length === 0 ? (
-          <Text style={styles.empty}>No applications yet. Add one below!</Text>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📋</Text>
+            <Text style={styles.empty}>No applications yet.</Text>
+            <Text style={styles.emptySub}>Tap the button below to add your first one!</Text>
+          </View>
         ) : (
           applications.map((app, index) => (
             <Swipeable
               key={index}
               renderRightActions={() => renderRightActions(index)}>
               <View style={styles.card}>
-                <Text style={styles.company}>{app.company}</Text>
+                <View style={styles.cardTop}>
+                  <Text style={styles.company}>{app.company}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: statusColors[app.status] + '22' }]}>
+                    <Text style={[styles.statusText, { color: statusColors[app.status] }]}>{app.status}</Text>
+                  </View>
+                </View>
                 <Text style={styles.role}>{app.role}</Text>
-                <Text style={styles.status}>{app.status}</Text>
-                {app.dateApplied ? <Text style={styles.date}>Applied: {app.dateApplied}</Text> : null}
+                {app.dateApplied ? <Text style={styles.date}>📅 {app.dateApplied}</Text> : null}
               </View>
             </Swipeable>
           ))
@@ -97,23 +116,26 @@ export default function ApplicationsScreen() {
         <ScrollView style={styles.modalContainer}>
           <Text style={styles.modalHeader}>New Application</Text>
 
-          <TextInput style={styles.input} placeholder="Company name" placeholderTextColor="#6B7280" value={company} onChangeText={setCompany} />
-          <TextInput style={styles.input} placeholder="Role / Position" placeholderTextColor="#6B7280" value={role} onChangeText={setRole} />
+          <Text style={styles.inputLabel}>Company</Text>
+          <TextInput style={styles.input} placeholder="e.g. Google" placeholderTextColor="#64748B" value={company} onChangeText={setCompany} />
 
-          <Text style={styles.label}>Date Applied:</Text>
+          <Text style={styles.inputLabel}>Role / Position</Text>
+          <TextInput style={styles.input} placeholder="e.g. Software Engineer Intern" placeholderTextColor="#64748B" value={role} onChangeText={setRole} />
+
+          <Text style={styles.inputLabel}>Date Applied</Text>
           <TouchableOpacity style={styles.dateInput} onPress={() => setDatePickerVisible(true)}>
             <Text style={dateApplied ? styles.dateText : styles.datePlaceholder}>
               {dateApplied || 'Select a date (optional)'}
             </Text>
           </TouchableOpacity>
           {datePickerVisible && (
-            <View>
+            <View style={styles.datePickerContainer}>
               <DateTimePicker
                 value={selectedDate}
                 mode="date"
                 display="spinner"
                 onChange={handleDateChange}
-                textColor="#111827"
+                textColor="#0F172A"
               />
               <TouchableOpacity
                 style={styles.dateConfirmButton}
@@ -123,21 +145,24 @@ export default function ApplicationsScreen() {
             </View>
           )}
 
-          <Text style={styles.label}>Status:</Text>
+          <Text style={styles.inputLabel}>Status</Text>
           <View style={styles.statusList}>
             {statuses.map((s) => (
               <TouchableOpacity
                 key={s}
-                style={[styles.statusOption, status === s && styles.statusOptionActive]}
+                style={[styles.statusOption, status === s && { backgroundColor: statusColors[s] + '22', borderColor: statusColors[s] }]}
                 onPress={() => setStatus(s)}>
-                <Text style={[styles.statusOptionText, status === s && styles.statusOptionTextActive]}>{s}</Text>
-                {status === s && <Text style={styles.checkmark}>✓</Text>}
+                <View style={styles.statusRow}>
+                  <View style={[styles.statusDot, { backgroundColor: statusColors[s] }]} />
+                  <Text style={[styles.statusOptionText, status === s && { color: statusColors[s], fontWeight: 'bold' }]}>{s}</Text>
+                </View>
+                {status === s && <Text style={{ color: statusColors[s], fontWeight: 'bold' }}>✓</Text>}
               </TouchableOpacity>
             ))}
           </View>
 
-          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
-            <Text style={styles.addButtonText}>Save Application</Text>
+          <TouchableOpacity style={styles.saveButton} onPress={handleAdd}>
+            <Text style={styles.saveButtonText}>Save Application</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
@@ -152,34 +177,44 @@ export default function ApplicationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white', padding: 20 },
-  header: { fontSize: 28, fontWeight: 'bold', marginTop: 50, marginBottom: 20 },
-  empty: { color: 'gray', textAlign: 'center', marginTop: 50 },
-  card: { backgroundColor: '#F3F4F6', padding: 15, borderRadius: 10, marginBottom: 10 },
-  deleteButton: { backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: 10, marginBottom: 10 },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  headerContainer: { backgroundColor: '#0F172A', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
+  appName: { fontSize: 13, color: '#0EA5E9', fontWeight: 'bold', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
+  header: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
+  scrollView: { flex: 1, padding: 16 },
+  emptyContainer: { alignItems: 'center', marginTop: 80 },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  empty: { color: '#0F172A', fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
+  emptySub: { color: '#64748B', fontSize: 14, textAlign: 'center' },
+  card: { backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0' },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  company: { fontSize: 17, fontWeight: 'bold', color: '#0F172A', flex: 1 },
+  statusBadge: { borderRadius: 20, paddingVertical: 3, paddingHorizontal: 10 },
+  statusText: { fontSize: 11, fontWeight: 'bold' },
+  role: { fontSize: 14, color: '#64748B', marginBottom: 6 },
+  date: { fontSize: 12, color: '#94A3B8' },
+  deleteButton: { backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: 12, marginBottom: 10 },
   deleteText: { fontSize: 22 },
-  deleteLabel: { fontSize: 12, color: '#EF4444', fontWeight: 'bold' },
-  company: { fontSize: 18, fontWeight: 'bold' },
-  role: { fontSize: 14, color: '#4B5563', marginTop: 2 },
-  status: { fontSize: 12, color: '#4F46E5', fontWeight: 'bold', marginTop: 5 },
-  date: { fontSize: 12, color: 'gray', marginTop: 2 },
-  addButton: { backgroundColor: '#4F46E5', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  deleteLabel: { fontSize: 11, color: '#EF4444', fontWeight: 'bold' },
+  addButton: { backgroundColor: '#0EA5E9', margin: 16, padding: 16, borderRadius: 12, alignItems: 'center' },
   addButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  modalContainer: { flex: 1, padding: 25, backgroundColor: 'white', marginTop: 60 },
-  modalHeader: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, marginBottom: 15, fontSize: 16 },
-  label: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
-  dateInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, marginBottom: 15 },
-  dateText: { fontSize: 16, color: '#111827' },
-  datePlaceholder: { fontSize: 16, color: '#6B7280' },
-  dateConfirmButton: { backgroundColor: '#4F46E5', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 15 },
+  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 60, paddingHorizontal: 20 },
+  modalHeader: { fontSize: 26, fontWeight: 'bold', color: '#0F172A', marginBottom: 24 },
+  inputLabel: { fontSize: 13, fontWeight: 'bold', color: '#64748B', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
+  input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18, fontSize: 16, color: '#0F172A' },
+  dateInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18 },
+  dateText: { fontSize: 16, color: '#0F172A' },
+  datePlaceholder: { fontSize: 16, color: '#64748B' },
+  datePickerContainer: { backgroundColor: '#FFFFFF', borderRadius: 10, marginBottom: 18, overflow: 'hidden' },
+  dateConfirmButton: { backgroundColor: '#0EA5E9', padding: 12, alignItems: 'center' },
   dateConfirmText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   statusList: { marginBottom: 20 },
-  statusOption: { padding: 14, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statusOptionActive: { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' },
-  statusOptionText: { fontSize: 15, color: '#4B5563' },
-  statusOptionTextActive: { color: '#4F46E5', fontWeight: 'bold' },
-  checkmark: { color: '#4F46E5', fontWeight: 'bold', fontSize: 16 },
-  cancelButton: { alignItems: 'center', marginTop: 10 },
-  cancelText: { color: 'gray', fontSize: 16 },
+  statusOption: { padding: 14, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF' },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  statusDot: { width: 10, height: 10, borderRadius: 5 },
+  statusOptionText: { fontSize: 15, color: '#64748B' },
+  saveButton: { backgroundColor: '#0EA5E9', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  saveButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  cancelButton: { alignItems: 'center', marginTop: 12 },
+  cancelText: { color: '#64748B', fontSize: 16 },
 });

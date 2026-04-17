@@ -8,74 +8,98 @@ export default function DashboardScreen() {
   const totalApplications = applications.length;
   const totalInterviews = applications.filter(a => a.status === 'Interview').length;
   const totalOffers = applications.filter(a => a.status === 'Offer').length;
+  const totalRejected = applications.filter(a => a.status === 'Rejected').length;
   const totalEmails = emails.length;
   const totalCoffeeChats = emails.filter(e => e.coffeeChat === 'Yes').length;
+  const totalResponses = emails.filter(e => e.response === 'Yes').length;
   const followUps = emails.filter(e => e.followUpDate !== '');
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Dashboard</Text>
-      <ScrollView>
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, { backgroundColor: '#EEF2FF' }]}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.appName}>App Trax</Text>
+        <Text style={styles.header}>Dashboard</Text>
+      </View>
+
+      <ScrollView style={styles.scrollView}>
+
+        <Text style={styles.sectionTitle}>Applications</Text>
+        <View style={styles.statsGrid}>
+          <View style={[styles.statCard, { borderTopColor: '#0EA5E9' }]}>
             <Text style={styles.statNumber}>{totalApplications}</Text>
-            <Text style={styles.statLabel}>Applications</Text>
+            <Text style={styles.statLabel}>Total</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: '#FEF3C7' }]}>
+          <View style={[styles.statCard, { borderTopColor: '#F59E0B' }]}>
             <Text style={styles.statNumber}>{totalInterviews}</Text>
             <Text style={styles.statLabel}>Interviews</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: '#D1FAE5' }]}>
+          <View style={[styles.statCard, { borderTopColor: '#10B981' }]}>
             <Text style={styles.statNumber}>{totalOffers}</Text>
             <Text style={styles.statLabel}>Offers</Text>
           </View>
-        </View>
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>📧 Emails Sent</Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoNumber}>{totalEmails}</Text>
-            <Text style={styles.infoLabel}>Total emails logged</Text>
+          <View style={[styles.statCard, { borderTopColor: '#EF4444' }]}>
+            <Text style={styles.statNumber}>{totalRejected}</Text>
+            <Text style={styles.statLabel}>Rejected</Text>
           </View>
         </View>
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>☕ Coffee Chats</Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoNumber}>{totalCoffeeChats}</Text>
-            <Text style={styles.infoLabel}>Coffee chats secured</Text>
+
+        <Text style={styles.sectionTitle}>Outreach</Text>
+        <View style={styles.statsGrid}>
+          <View style={[styles.statCard, { borderTopColor: '#0EA5E9' }]}>
+            <Text style={styles.statNumber}>{totalEmails}</Text>
+            <Text style={styles.statLabel}>Emails Sent</Text>
+          </View>
+          <View style={[styles.statCard, { borderTopColor: '#10B981' }]}>
+            <Text style={styles.statNumber}>{totalResponses}</Text>
+            <Text style={styles.statLabel}>Responses</Text>
+          </View>
+          <View style={[styles.statCard, { borderTopColor: '#F59E0B' }]}>
+            <Text style={styles.statNumber}>{totalCoffeeChats}</Text>
+            <Text style={styles.statLabel}>Coffee Chats</Text>
           </View>
         </View>
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>🔔 Follow Ups Due</Text>
-          {followUps.length === 0 ? (
-            <Text style={styles.empty}>No follow ups scheduled yet</Text>
-          ) : (
-            followUps.map((email, index) => (
-              <View key={index} style={styles.followUpCard}>
+
+        <Text style={styles.sectionTitle}>🔔 Follow Ups Due</Text>
+        {followUps.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No follow ups scheduled yet</Text>
+          </View>
+        ) : (
+          followUps.map((email, index) => (
+            <View key={index} style={styles.followUpCard}>
+              <View>
                 <Text style={styles.followUpCompany}>{email.company}</Text>
+                {email.contactName ? <Text style={styles.followUpContact}>{email.contactName}</Text> : null}
+              </View>
+              <View style={styles.followUpDateBadge}>
                 <Text style={styles.followUpDate}>📅 {email.followUpDate}</Text>
               </View>
-            ))
-          )}
-        </View>
+            </View>
+          ))
+        )}
+
+        <View style={{ height: 30 }} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white', padding: 20 },
-  header: { fontSize: 28, fontWeight: 'bold', marginTop: 50, marginBottom: 20 },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  statCard: { flex: 1, marginHorizontal: 4, borderRadius: 12, padding: 15, alignItems: 'center' },
-  statNumber: { fontSize: 28, fontWeight: 'bold', color: '#1F2937' },
-  statLabel: { fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' },
-  section: { marginBottom: 20 },
-  sectionHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#1F2937' },
-  infoCard: { backgroundColor: '#F3F4F6', borderRadius: 12, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 15 },
-  infoNumber: { fontSize: 28, fontWeight: 'bold', color: '#4F46E5' },
-  infoLabel: { fontSize: 14, color: '#6B7280' },
-  empty: { color: 'gray', fontSize: 14 },
-  followUpCard: { backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  followUpCompany: { fontSize: 15, fontWeight: 'bold', color: '#1F2937' },
-  followUpDate: { fontSize: 13, color: '#6B7280' },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  headerContainer: { backgroundColor: '#0F172A', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
+  appName: { fontSize: 13, color: '#0EA5E9', fontWeight: 'bold', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
+  header: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
+  scrollView: { flex: 1, padding: 16 },
+  sectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 8 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
+  statCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, flex: 1, minWidth: '45%', borderTopWidth: 3, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center' },
+  statNumber: { fontSize: 32, fontWeight: 'bold', color: '#0F172A' },
+  statLabel: { fontSize: 12, color: '#64748B', marginTop: 4, textAlign: 'center' },
+  emptyCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 20, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center' },
+  emptyText: { color: '#94A3B8', fontSize: 14 },
+  followUpCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  followUpCompany: { fontSize: 16, fontWeight: 'bold', color: '#0F172A' },
+  followUpContact: { fontSize: 13, color: '#64748B', marginTop: 2 },
+  followUpDateBadge: { backgroundColor: '#FEF3C7', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 12 },
+  followUpDate: { fontSize: 12, color: '#D97706', fontWeight: 'bold' },
 });

@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const ApplicationsContext = React.createContext(null);
@@ -44,17 +43,16 @@ export default function TabLayout() {
     <ApplicationsContext.Provider value={{ applications, setApplications, emails, setEmails }}>
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+          tabBarActiveTintColor: '#0EA5E9',
+          tabBarInactiveTintColor: '#64748B',
+          tabBarStyle: {
+            backgroundColor: '#0F172A',
+            borderTopColor: '#1E293B',
+            borderTopWidth: 1,
+          },
           headerShown: false,
           tabBarButton: HapticTab,
         }}>
-        <Tabs.Screen
-          name="dashboard"
-          options={{
-            title: 'Dashboard',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
-          }}
-        />
         <Tabs.Screen
           name="index"
           options={{
@@ -67,6 +65,13 @@ export default function TabLayout() {
           options={{
             title: 'Emails',
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="dashboard"
+          options={{
+            title: 'Dashboard',
+            tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
           }}
         />
       </Tabs>
