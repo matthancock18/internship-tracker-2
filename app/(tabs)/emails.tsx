@@ -2,6 +2,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useContext, useState } from 'react';
 import { Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { ApplicationsContext } from './_layout';
 
 export default function EmailsScreen() {
@@ -160,11 +161,26 @@ export default function EmailsScreen() {
 
       <ScrollView style={styles.scrollView}>
         {emails.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📧</Text>
-            <Text style={styles.empty}>No emails logged yet.</Text>
-            <Text style={styles.emptySub}>Tap the button below to log your first one!</Text>
-          </View>
+         <View style={styles.emptyContainer}>
+  <Svg width="160" height="160" viewBox="0 0 160 160">
+    {/* Background circle */}
+    <Circle cx="80" cy="80" r="70" fill="#EFF6FF" />
+    {/* Envelope body */}
+    <Rect x="30" y="55" width="100" height="70" rx="8" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2" />
+    {/* Envelope flap left line */}
+    <Path d="M30 55 L80 95 L130 55" stroke="#E2E8F0" strokeWidth="2" fill="none" />
+    {/* Envelope bottom fold lines */}
+    <Path d="M30 125 L65 90" stroke="#E2E8F0" strokeWidth="2" />
+    <Path d="M130 125 L95 90" stroke="#E2E8F0" strokeWidth="2" />
+    {/* Plus icon circle */}
+    <Circle cx="110" cy="115" r="16" fill="#0EA5E9" />
+    <Rect x="109" y="107" width="2" height="16" rx="1" fill="#FFFFFF" />
+    <Rect x="102" y="114" width="16" height="2" rx="1" fill="#FFFFFF" />
+  </Svg>
+
+  <Text style={styles.empty}>No emails logged yet</Text>
+  <Text style={styles.emptySub}>Tap + to log your first outreach email</Text>
+</View>
         ) : (
           emails.map((email, index) => (
             <Swipeable
@@ -194,9 +210,15 @@ export default function EmailsScreen() {
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
-      <Modal visible={modalVisible} animationType="slide">
-        <ScrollView style={styles.modalContainer}>
-          <Text style={styles.modalHeader}>Log an Email</Text>
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
+       <ScrollView style={styles.modalContainer}>
+  <View style={styles.modalHandle} />
+  <View style={styles.modalTitleRow}>
+    <Text style={styles.modalHeader}>Log an Email</Text>
+    <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
+      <Text style={styles.closeButtonText}>✕</Text>
+    </TouchableOpacity>
+  </View>
 
           <Text style={styles.inputLabel}>Company</Text>
           <TextInput style={styles.input} placeholder="e.g. Google" placeholderTextColor="#64748B" value={company} onChangeText={setCompany} />
@@ -276,7 +298,13 @@ export default function EmailsScreen() {
 
       <Modal visible={editModalVisible} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modalContainer}>
-          <Text style={styles.modalHeader}>Edit Email</Text>
+  <View style={styles.modalHandle} />
+  <View style={styles.modalTitleRow}>
+    <Text style={styles.modalHeader}>Edit Email</Text>
+    <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.closeButton}>
+      <Text style={styles.closeButtonText}>✕</Text>
+    </TouchableOpacity>
+  </View>
 
           <Text style={styles.inputLabel}>Company</Text>
           <TextInput style={styles.input} placeholder="e.g. Google" placeholderTextColor="#64748B" value={editCompany} onChangeText={setEditCompany} />
@@ -367,8 +395,8 @@ const styles = StyleSheet.create({
   deleteLabel: { fontSize: 11, color: '#EF4444', fontWeight: 'bold' },
   fab: { position: 'absolute', bottom: 24, right: 24, width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
   fabText: { color: 'white', fontSize: 32, fontWeight: '300', lineHeight: 36 },
-  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 60, paddingHorizontal: 20 },
-  modalHeader: { fontSize: 26, fontWeight: 'bold', color: '#0F172A', marginBottom: 24 },
+  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 12, paddingHorizontal: 20 },
+  modalHeader: { fontSize: 26, fontWeight: 'bold', color: '#0F172A' },
   inputLabel: { fontSize: 13, fontWeight: 'bold', color: '#64748B', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
   input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18, fontSize: 16, color: '#0F172A' },
   notesInput: { height: 100, textAlignVertical: 'top' },
@@ -389,4 +417,8 @@ const styles = StyleSheet.create({
   saveButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   cancelButton: { alignItems: 'center', marginTop: 12 },
   cancelText: { color: '#64748B', fontSize: 16 },
+ modalHandle: { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 16 },
+modalTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+closeButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+closeButtonText: { fontSize: 14, color: '#64748B', fontWeight: '600' },
 });

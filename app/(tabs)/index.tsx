@@ -2,6 +2,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useContext, useState } from 'react';
 import { Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
+import Svg, { Circle, Rect } from 'react-native-svg';
 import { ApplicationsContext } from './_layout';
 
 export default function ApplicationsScreen() {
@@ -14,17 +15,16 @@ export default function ApplicationsScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [status, setStatus] = useState('Applied');
   const [editModalVisible, setEditModalVisible] = useState(false);
-const [editIndex, setEditIndex] = useState(null);
-const [editCompany, setEditCompany] = useState('');
-const [editRole, setEditRole] = useState('');
-const [editDateApplied, setEditDateApplied] = useState('');
-const [editSelectedDate, setEditSelectedDate] = useState(new Date());
-const [editDatePickerVisible, setEditDatePickerVisible] = useState(false);
-const [editStatus, setEditStatus] = useState('Applied');
-const [activeFilter, setActiveFilter] = useState('All');
+  const [editIndex, setEditIndex] = useState(null);
+  const [editCompany, setEditCompany] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editDateApplied, setEditDateApplied] = useState('');
+  const [editSelectedDate, setEditSelectedDate] = useState(new Date());
+  const [editDatePickerVisible, setEditDatePickerVisible] = useState(false);
+  const [editStatus, setEditStatus] = useState('Applied');
+  const [activeFilter, setActiveFilter] = useState('All');
 
   const statuses = ['Not Yet Open', 'Applied', 'Interview', 'Offer', 'Rejected'];
-
   const statusColors = {
     'Not Yet Open': '#64748B',
     'Applied': '#0EA5E9',
@@ -33,19 +33,12 @@ const [activeFilter, setActiveFilter] = useState('All');
     'Rejected': '#EF4444',
   };
 
-  const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
+  const formatDate = (date) =>
+    date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const handleDateChange = (event, date) => {
-    if (event.type === 'dismissed') {
-      setDatePickerVisible(false);
-      return;
-    }
-    if (date) {
-      setSelectedDate(date);
-      setDateApplied(formatDate(date));
-    }
+    if (event.type === 'dismissed') { setDatePickerVisible(false); return; }
+    if (date) { setSelectedDate(date); setDateApplied(formatDate(date)); }
     if (Platform.OS === 'android') setDatePickerVisible(false);
   };
 
@@ -55,52 +48,45 @@ const [activeFilter, setActiveFilter] = useState('All');
       return;
     }
     setApplications([...applications, { company, role, dateApplied, status }]);
-    setCompany('');
-    setRole('');
-    setDateApplied('');
-    setSelectedDate(new Date());
-    setStatus('Applied');
+    setCompany(''); setRole(''); setDateApplied('');
+    setSelectedDate(new Date()); setStatus('Applied');
     setModalVisible(false);
   };
 
   const handleDelete = (index) => {
-    Alert.alert(
-      'Delete Application',
-      'Are you sure you want to delete this application?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => {
-          setApplications(applications.filter((_, i) => i !== index));
-        }},
-      ]
-    );
+    Alert.alert('Delete Application', 'Are you sure you want to delete this application?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () =>
+          setApplications(applications.filter((_, i) => i !== index)) },
+    ]);
   };
+
   const handleOpenEdit = (app, index) => {
-  setEditIndex(index);
-  setEditCompany(app.company);
-  setEditRole(app.role);
-  setEditDateApplied(app.dateApplied || '');
-  setEditSelectedDate(app.dateApplied ? new Date(app.dateApplied) : new Date());
-  setEditStatus(app.status);
-  setEditModalVisible(true);
-};
+    setEditIndex(index);
+    setEditCompany(app.company);
+    setEditRole(app.role);
+    setEditDateApplied(app.dateApplied || '');
+    setEditSelectedDate(app.dateApplied ? new Date(app.dateApplied) : new Date());
+    setEditStatus(app.status);
+    setEditModalVisible(true);
+  };
 
-const handleSaveEdit = () => {
-  if (!editCompany || !editRole) {
-    Alert.alert('Missing Info', 'Please enter at least a company and role.');
-    return;
-  }
-  const updated = [...applications];
-  updated[editIndex] = { company: editCompany, role: editRole, dateApplied: editDateApplied, status: editStatus };
-  setApplications(updated);
-  setEditModalVisible(false);
-};
+  const handleSaveEdit = () => {
+    if (!editCompany || !editRole) {
+      Alert.alert('Missing Info', 'Please enter at least a company and role.');
+      return;
+    }
+    const updated = [...applications];
+    updated[editIndex] = { company: editCompany, role: editRole, dateApplied: editDateApplied, status: editStatus };
+    setApplications(updated);
+    setEditModalVisible(false);
+  };
 
-const handleEditDateChange = (event, date) => {
-  if (event.type === 'dismissed') { setEditDatePickerVisible(false); return; }
-  if (date) { setEditSelectedDate(date); setEditDateApplied(formatDate(date)); }
-  if (Platform.OS === 'android') setEditDatePickerVisible(false);
-};
+  const handleEditDateChange = (event, date) => {
+    if (event.type === 'dismissed') { setEditDatePickerVisible(false); return; }
+    if (date) { setEditSelectedDate(date); setEditDateApplied(formatDate(date)); }
+    if (Platform.OS === 'android') setEditDatePickerVisible(false);
+  };
 
   const renderRightActions = (index) => (
     <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(index)}>
@@ -109,35 +95,59 @@ const handleEditDateChange = (event, date) => {
     </TouchableOpacity>
   );
 
+  const filtered = applications.filter(
+    (a) => activeFilter === 'All' || a.status === activeFilter
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <Text style={styles.appName}>App Trax</Text>
         <Text style={styles.header}>Applications</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={styles.filterContent}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterRow}
+          contentContainerStyle={styles.filterContent}>
           {['All', ...statuses].map((f) => (
             <TouchableOpacity
               key={f}
-              style={[styles.filterPill, activeFilter === f && { backgroundColor: activeFilter === 'All' ? '#0EA5E9' : statusColors[f], borderColor: activeFilter === 'All' ? '#0EA5E9' : statusColors[f] }]}
+              style={[
+                styles.filterPill,
+                activeFilter === f && {
+                  backgroundColor: f === 'All' ? '#0EA5E9' : statusColors[f],
+                  borderColor: f === 'All' ? '#0EA5E9' : statusColors[f],
+                },
+              ]}
               onPress={() => setActiveFilter(f)}>
-              <Text style={[styles.filterPillText, activeFilter === f && { color: '#FFFFFF' }]}>{f}</Text>
+              <Text style={[styles.filterPillText, activeFilter === f && { color: '#FFFFFF' }]}>
+                {f}
+              </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
 
       <ScrollView style={styles.scrollView}>
-        {applications.filter(a => activeFilter === 'All' || a.status === activeFilter).length === 0 ? (
+        {filtered.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.empty}>No applications yet.</Text>
-            <Text style={styles.emptySub}>Tap the button below to add your first one!</Text>
+            <Svg width="160" height="160" viewBox="0 0 160 160">
+              <Circle cx="80" cy="80" r="70" fill="#EFF6FF" />
+              <Rect x="45" y="40" width="70" height="85" rx="8" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2" />
+              <Rect x="62" y="34" width="36" height="14" rx="7" fill="#0EA5E9" />
+              <Rect x="57" y="65" width="46" height="5" rx="2.5" fill="#E2E8F0" />
+              <Rect x="57" y="78" width="36" height="5" rx="2.5" fill="#E2E8F0" />
+              <Rect x="57" y="91" width="40" height="5" rx="2.5" fill="#E2E8F0" />
+              <Circle cx="110" cy="115" r="16" fill="#0EA5E9" />
+              <Rect x="109" y="107" width="2" height="16" rx="1" fill="#FFFFFF" />
+              <Rect x="102" y="114" width="16" height="2" rx="1" fill="#FFFFFF" />
+            </Svg>
+            <Text style={styles.empty}>No applications yet</Text>
+            <Text style={styles.emptySub}>Tap + to track your first internship application</Text>
           </View>
         ) : (
-          applications.filter(a => activeFilter === 'All' || a.status === activeFilter).map((app, index) => (
-            <Swipeable
-              key={index}
-              renderRightActions={() => renderRightActions(index)}>
+          filtered.map((app, index) => (
+            <Swipeable key={index} renderRightActions={() => renderRightActions(index)}>
               <TouchableOpacity style={styles.card} onPress={() => handleOpenEdit(app, index)}>
                 <View style={styles.cardInner}>
                   <View style={styles.cardLeft}>
@@ -146,7 +156,9 @@ const handleEditDateChange = (event, date) => {
                     {app.dateApplied ? <Text style={styles.date}>{app.dateApplied}</Text> : null}
                     <View style={{ alignSelf: 'flex-start' }}>
                       <View style={[styles.statusBadge, { backgroundColor: statusColors[app.status] + '22' }]}>
-                        <Text style={[styles.statusText, { color: statusColors[app.status] }]}>{app.status}</Text>
+                        <Text style={[styles.statusText, { color: statusColors[app.status] }]}>
+                          {app.status}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -164,9 +176,16 @@ const handleEditDateChange = (event, date) => {
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
-      <Modal visible={modalVisible} animationType="slide">
+      {/* ── Add Modal ── */}
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
         <ScrollView style={styles.modalContainer}>
-          <Text style={styles.modalHeader}>New Application</Text>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalTitleRow}>
+            <Text style={styles.modalHeader}>New Application</Text>
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.inputLabel}>Company</Text>
           <TextInput style={styles.input} placeholder="e.g. Google" placeholderTextColor="#64748B" value={company} onChangeText={setCompany} />
@@ -181,21 +200,18 @@ const handleEditDateChange = (event, date) => {
             </Text>
           </TouchableOpacity>
           {datePickerVisible && (
-
             <View style={styles.datePickerContainer}>
               <DateTimePicker
-  value={selectedDate}
-  mode="date"
-  display="inline"
-  locale="en-US"
-  onChange={handleDateChange}
-  textColor="#0F172A"
-  accentColor="#0EA5E9"
-  themeVariant="light"
-/>
-              <TouchableOpacity
-                style={styles.dateConfirmButton}
-                onPress={() => setDatePickerVisible(false)}>
+                value={selectedDate}
+                mode="date"
+                display="inline"
+                locale="en-US"
+                onChange={handleDateChange}
+                textColor="#0F172A"
+                accentColor="#0EA5E9"
+                themeVariant="light"
+              />
+              <TouchableOpacity style={styles.dateConfirmButton} onPress={() => setDatePickerVisible(false)}>
                 <Text style={styles.dateConfirmText}>✓ Confirm Date</Text>
               </TouchableOpacity>
             </View>
@@ -220,18 +236,23 @@ const handleEditDateChange = (event, date) => {
           <TouchableOpacity style={styles.saveButton} onPress={handleAdd}>
             <Text style={styles.saveButtonText}>Save Application</Text>
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
-
           <View style={{ height: 40 }} />
         </ScrollView>
-     </Modal>
+      </Modal>
 
-      <Modal visible={editModalVisible} animationType="slide" presentationStyle="pageSheet">
+      {/* ── Edit Modal ── */}
+      <Modal visible={editModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setEditModalVisible(false)}>
+        <View style={styles.modalHandle} />
         <ScrollView style={styles.modalContainer}>
-          <Text style={styles.modalHeader}>Edit Application</Text>
+          <View style={styles.modalTitleRow}>
+            <Text style={styles.modalHeader}>Edit Application</Text>
+            <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.inputLabel}>Company</Text>
           <TextInput style={styles.input} placeholder="e.g. Google" placeholderTextColor="#64748B" value={editCompany} onChangeText={setEditCompany} />
@@ -248,15 +269,15 @@ const handleEditDateChange = (event, date) => {
           {editDatePickerVisible && (
             <View style={styles.datePickerContainer}>
               <DateTimePicker
-  value={selectedDate}
-  mode="date"
-  display="inline"
-  locale="en-US"
-  onChange={handleDateChange}
-  textColor="#0F172A"
-  accentColor="#0EA5E9"
-  themeVariant="light"
-/>
+                value={editSelectedDate}
+                mode="date"
+                display="inline"
+                locale="en-US"
+                onChange={handleEditDateChange}
+                textColor="#0F172A"
+                accentColor="#0EA5E9"
+                themeVariant="light"
+              />
               <TouchableOpacity style={styles.dateConfirmButton} onPress={() => setEditDatePickerVisible(false)}>
                 <Text style={styles.dateConfirmText}>✓ Confirm Date</Text>
               </TouchableOpacity>
@@ -282,15 +303,14 @@ const handleEditDateChange = (event, date) => {
           <TouchableOpacity style={styles.saveButton} onPress={handleSaveEdit}>
             <Text style={styles.saveButtonText}>Save Changes</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.deleteButton, { width: '100%', borderRadius: 12, height: 52, marginBottom: 0 }]} onPress={() => handleDelete(editIndex)}>
+          <TouchableOpacity
+            style={[styles.deleteButton, { width: '100%', borderRadius: 12, height: 52, marginBottom: 0 }]}
+            onPress={() => handleDelete(editIndex)}>
             <Text style={[styles.deleteLabel, { fontSize: 15 }]}>Delete Application</Text>
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.cancelButton} onPress={() => setEditModalVisible(false)}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
-
           <View style={{ height: 40 }} />
         </ScrollView>
       </Modal>
@@ -309,31 +329,29 @@ const styles = StyleSheet.create({
   header: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
   scrollView: { flex: 1, padding: 16 },
   emptyContainer: { alignItems: 'center', marginTop: 80 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
   empty: { color: '#0F172A', fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
   emptySub: { color: '#64748B', fontSize: 14, textAlign: 'center' },
   card: { backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0' },
   cardInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardLeft: { flex: 1 },
-  company: { fontSize: 15, fontWeight: '700', color: '#0F172A', marginBottom: 3 },
-  role: { fontSize: 13, color: '#64748B', marginBottom: 4 },
-  date: { fontSize: 11, color: '#94A3B8', marginBottom: 6 },
-  statusBadge: { alignSelf: 'flex-start', borderRadius: 20, paddingVertical: 3, paddingHorizontal: 10, flexShrink: 1 },
+  company: { fontSize: 17, fontWeight: 'bold', color: '#0F172A', flex: 1 },
+  role: { fontSize: 14, color: '#64748B', marginBottom: 6 },
+  date: { fontSize: 12, color: '#94A3B8', marginBottom: 4 },
+  statusBadge: { borderRadius: 20, paddingVertical: 3, paddingHorizontal: 10 },
   statusText: { fontSize: 11, fontWeight: 'bold' },
   swipeHint: { marginLeft: 12, opacity: 0.3, alignItems: 'center' },
   swipeArrow: { fontSize: 16, color: '#94A3B8' },
-  company: { fontSize: 17, fontWeight: 'bold', color: '#0F172A', flex: 1 },
-  statusBadge: { borderRadius: 20, paddingVertical: 3, paddingHorizontal: 10 },
-  statusText: { fontSize: 11, fontWeight: 'bold' },
-  role: { fontSize: 14, color: '#64748B', marginBottom: 6 },
-  date: { fontSize: 12, color: '#94A3B8' },
   deleteButton: { backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: 12, marginBottom: 10 },
   deleteText: { fontSize: 22 },
   deleteLabel: { fontSize: 11, color: '#EF4444', fontWeight: 'bold' },
   fab: { position: 'absolute', bottom: 24, right: 24, width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
   fabText: { color: 'white', fontSize: 32, fontWeight: '300', lineHeight: 36 },
-  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 60, paddingHorizontal: 20 },
-  modalHeader: { fontSize: 26, fontWeight: 'bold', color: '#0F172A', marginBottom: 24 },
+  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 12, paddingHorizontal: 20 },
+  modalHeader: { fontSize: 26, fontWeight: 'bold', color: '#0F172A' },
+  modalHandle: { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 16 },
+  modalTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  closeButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  closeButtonText: { fontSize: 14, color: '#64748B', fontWeight: '600' },
   inputLabel: { fontSize: 13, fontWeight: 'bold', color: '#64748B', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
   input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18, fontSize: 16, color: '#0F172A' },
   dateInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18 },
