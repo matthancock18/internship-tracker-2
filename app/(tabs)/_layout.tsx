@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { Tabs } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 
@@ -12,6 +13,8 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const [applications, setApplications] = useState([]);
   const [emails, setEmails] = useState([]);
+  const [scannedImageUri, setScannedImageUri] = useState<string | null>(null);
+  const [scanRequested, setScanRequested] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -39,8 +42,48 @@ export default function TabLayout() {
     saveData();
   }, [applications, emails]);
 
+  // Runs picker at root level — no modal context interference
+  useEffect(() => {
+    if (!scanRequested) return;
+    setScanRequested(false);
+
+   const launchPicker = async () => {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  console.log('Photo library permission status:', status);
+  if (status !== 'granted') {
+    Alert.alert('Permission Required', 'Please allow photo access in Settings → App Trax → Photos');
+    return;
+  }
+  try {
+    console.log('About to launch picker...');
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+    });
+    console.log('Picker result:', result.canceled ? 'canceled' : result.assets[0].uri);
+    if (!result.canceled) {
+      setScannedImageUri(result.assets[0].uri);
+    }
+  } catch (e) {
+    console.log('Picker error:', e);
+    Alert.alert('Error', String(e));
+  }
+};
+
+    // Small delay to ensure any modal animation has fully completed
+    setTimeout(launchPicker, 500);
+  }, [scanRequested]);
+
   return (
-    <ApplicationsContext.Provider value={{ applications, setApplications, emails, setEmails }}>
+    <ApplicationsContext.Provider value={{
+      applications,
+      setApplications,
+      emails,
+      setEmails,
+      scannedImageUri,
+      setScannedImageUri,
+      setScanRequested,
+    }}>
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: '#0EA5E9',

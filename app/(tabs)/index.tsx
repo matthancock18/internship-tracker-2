@@ -1,12 +1,13 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useContext, useState } from 'react';
-import { Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import TextRecognition from '@react-native-ml-kit/text-recognition';
+import { useContext, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import { ApplicationsContext } from './_layout';
 
 export default function ApplicationsScreen() {
-  const { applications, setApplications } = useContext(ApplicationsContext);
+  const { applications, setApplications, scannedImageUri, setScannedImageUri, setScanRequested } = useContext(ApplicationsContext);
   const [modalVisible, setModalVisible] = useState(false);
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
@@ -23,6 +24,7 @@ export default function ApplicationsScreen() {
   const [editDatePickerVisible, setEditDatePickerVisible] = useState(false);
   const [editStatus, setEditStatus] = useState('Applied');
   const [activeFilter, setActiveFilter] = useState('All');
+  const [scanning, setScanning] = useState(false);
 
   const statuses = ['Not Yet Open', 'Applied', 'Interview', 'Offer', 'Rejected'];
   const statusColors = {
@@ -40,6 +42,177 @@ export default function ApplicationsScreen() {
     if (event.type === 'dismissed') { setDatePickerVisible(false); return; }
     if (date) { setSelectedDate(date); setDateApplied(formatDate(date)); }
     if (Platform.OS === 'android') setDatePickerVisible(false);
+  };
+
+  // Watch for scanned image coming back from root level picker
+  useEffect(() => {
+    if (!scannedImageUri) return;
+    setScannedImageUri(null);
+    setModalVisible(true);
+    setTimeout(() => processImage(scannedImageUri), 400);
+  }, [scannedImageUri]);
+
+  // ── OCR Parser ──
+  const parseOCRText = (text: string) => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+    let detectedCompany = '';
+    let detectedRole = '';
+    let detectedDate = '';
+
+    const roleKeywords = [
+      'intern', 'internship', 'engineer', 'developer', 'analyst', 'associate',
+      'coordinator', 'manager', 'designer', 'scientist', 'consultant', 'specialist',
+      'assistant', 'director', 'officer', 'architect', 'lead', 'head', 'off-cycle',
+    ];
+
+    const companyKeywords = [
+      'inc', 'llc', 'corp', 'ltd', 'co.', 'company', 'technologies', 'tech',
+      'group', 'solutions', 'labs', 'studio', 'studios', 'sachs', 'stanley',
+      'fargo', 'chase', 'capital', 'partners', 'ventures', 'bank', 'financial',
+    ];
+
+    const knownCompanies = [
+      'goldman sachs', 'morgan stanley', 'apple', 'google', 'microsoft', 'amazon',
+      'meta', 'netflix', 'tesla', 'uber', 'airbnb', 'stripe', 'jpmorgan', 'blackrock',
+      'deloitte', 'mckinsey', 'bain', 'bcg', 'accenture', 'salesforce', 'oracle',
+      'citibank', 'citi', 'wells fargo', 'bank of america', 'barclays', 'hsbc',
+      'bloomberg', 'blackstone', 'citadel', 'two sigma', 'jane street', 'palantir',
+      'spotify', 'linkedin', 'twitter', 'snapchat', 'pinterest', 'shopify', 'square',
+      'nvidia', 'amd', 'intel', 'qualcomm', 'ibm', 'cisco', 'adobe', 'vmware',
+    ];
+
+    const datePatterns = [
+      /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2},?\s+\d{4}\b/i,
+      /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/,
+      /\b\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\b/,
+    ];
+
+    const fullText = text.toLowerCase();
+
+    // 1. Check known companies against full text (handles multi-word names)
+    for (const known of knownCompanies) {
+      if (fullText.includes(known)) {
+        detectedCompany = known.replace(/\b\w/g, c => c.toUpperCase());
+        break;
+      }
+    }
+
+    // 2. Check domain name (e.g. goldmansachs.com -> Goldman Sachs)
+    if (!detectedCompany) {
+      const domainMatch = text.match(/([a-zA-Z]+)\.com/i);
+      if (domainMatch) {
+        const domain = domainMatch[1].toLowerCase();
+        const domainToCompany: Record<string, string> = {
+          goldmansachs: 'Goldman Sachs',
+          morganstanley: 'Morgan Stanley',
+          jpmorgan: 'JPMorgan',
+          wellsfargo: 'Wells Fargo',
+          bankofamerica: 'Bank of America',
+          bloomberg: 'Bloomberg',
+          blackstone: 'Blackstone',
+          citadel: 'Citadel',
+          palantir: 'Palantir',
+          deloitte: 'Deloitte',
+          accenture: 'Accenture',
+          salesforce: 'Salesforce',
+          linkedin: 'LinkedIn',
+          spotify: 'Spotify',
+          shopify: 'Shopify',
+          nvidia: 'NVIDIA',
+        };
+        if (domainToCompany[domain]) {
+          detectedCompany = domainToCompany[domain];
+        } else {
+          console.log('Domain match:', domainMatch ? domainMatch[1] : 'none');
+          // Capitalize domain as fallback company name
+          detectedCompany = domain.charAt(0).toUpperCase() + domain.slice(1);
+        }
+      }
+    }
+
+    // 3. Line-by-line scan for role, company keywords, and dates
+    for (const line of lines) {
+      const lower = line.toLowerCase();
+
+      // Role detection
+      if (!detectedRole && roleKeywords.some(k => lower.includes(k))) {
+        if (line.length > 5 && !lower.match(/^(internship|engineer|analyst|associate)$/)) {
+          detectedRole = line;
+        }
+      }
+
+      // Company from line keywords (if not found yet)
+      if (!detectedCompany && companyKeywords.some(k => lower.includes(k))) {
+        detectedCompany = line.replace(/^(from|company|employer|organization|at|@)\s*[:\-]?\s*/i, '').trim();
+      }
+
+      // Date detection
+      if (!detectedDate) {
+        for (const pattern of datePatterns) {
+          const match = line.match(pattern);
+          if (match) {
+            const parsed = new Date(match[0]);
+            if (!isNaN(parsed.getTime())) {
+              detectedDate = formatDate(parsed);
+            } else {
+              detectedDate = match[0];
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // 4. Fallback: first clean short line as company (skip timestamps, UI text)
+    if (!detectedCompany && lines.length > 0) {
+      const firstShortLine = lines.find(l =>
+        l.length > 2 && l.length < 40 &&
+        !l.match(/^(\d+:\d+|dear|hi|hello|to|from|date|re:|subject|share|application|eligibility|internship|whether|we |our )/i)
+      );
+      if (firstShortLine) detectedCompany = firstShortLine;
+    }
+
+    return { detectedCompany, detectedRole, detectedDate };
+  };
+
+  // ── OCR Scan Handler ──
+  const handleScan = async () => {
+    setModalVisible(false);
+    setTimeout(() => setScanRequested(true), 300);
+  };
+
+  const processImage = async (uri: string) => {
+    setScanning(true);
+    console.log('processImage called with uri:', uri);
+    try {
+      console.log('Calling TextRecognition.recognize...');
+      const result = await TextRecognition.recognize(uri);
+      console.log('Recognition complete');
+      const text = result.text;
+      console.log('OCR lines:', text.split('\n').map((l, i) => `${i}: "${l.trim()}"`).join('\n'));
+      console.log('OCR raw text:', text);
+
+      if (!text || text.trim().length === 0) {
+        Alert.alert('No text found', 'Could not detect any text in this image. Try a clearer photo.');
+        setScanning(false);
+        return;
+      }
+
+      const { detectedCompany, detectedRole, detectedDate } = parseOCRText(text);
+
+      if (detectedCompany) setCompany(detectedCompany);
+      if (detectedRole) setRole(detectedRole);
+      if (detectedDate) setDateApplied(detectedDate);
+
+      if (!detectedCompany && !detectedRole) {
+        Alert.alert('Could not parse', "Text was detected but couldn't identify company or role. Please fill in the fields manually.");
+      }
+    } catch (e) {
+      Alert.alert('Scan failed', 'Something went wrong. Please try again or fill in manually.');
+      console.log('OCR error:', e);
+    }
+    setScanning(false);
   };
 
   const handleAdd = () => {
@@ -177,15 +350,36 @@ export default function ApplicationsScreen() {
       </TouchableOpacity>
 
       {/* ── Add Modal ── */}
-      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setModalVisible(false)}>
         <ScrollView style={styles.modalContainer}>
           <View style={styles.modalHandle} />
           <View style={styles.modalTitleRow}>
             <Text style={styles.modalHeader}>New Application</Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
+            <View style={styles.modalTitleActions}>
+              <TouchableOpacity
+                style={styles.scanButton}
+                onPress={handleScan}
+                disabled={scanning}>
+                {scanning
+                  ? <ActivityIndicator size="small" color="#0EA5E9" />
+                  : <Text style={styles.scanButtonText}>📷 Scan</Text>
+                }
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
           </View>
+
+          {scanning && (
+            <View style={styles.scanningBanner}>
+              <Text style={styles.scanningText}>Scanning document...</Text>
+            </View>
+          )}
 
           <Text style={styles.inputLabel}>Company</Text>
           <TextInput style={styles.input} placeholder="e.g. Google" placeholderTextColor="#64748B" value={company} onChangeText={setCompany} />
@@ -244,7 +438,11 @@ export default function ApplicationsScreen() {
       </Modal>
 
       {/* ── Edit Modal ── */}
-      <Modal visible={editModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setEditModalVisible(false)}>
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setEditModalVisible(false)}>
         <View style={styles.modalHandle} />
         <ScrollView style={styles.modalContainer}>
           <View style={styles.modalTitleRow}>
@@ -350,8 +548,13 @@ const styles = StyleSheet.create({
   modalHeader: { fontSize: 26, fontWeight: 'bold', color: '#0F172A' },
   modalHandle: { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 16 },
   modalTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  modalTitleActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   closeButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   closeButtonText: { fontSize: 14, color: '#64748B', fontWeight: '600' },
+  scanButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BAE6FD', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12 },
+  scanButtonText: { fontSize: 13, color: '#0EA5E9', fontWeight: '600' },
+  scanningBanner: { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 12, marginBottom: 16, alignItems: 'center' },
+  scanningText: { color: '#0EA5E9', fontSize: 14, fontWeight: '600' },
   inputLabel: { fontSize: 13, fontWeight: 'bold', color: '#64748B', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
   input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18, fontSize: 16, color: '#0F172A' },
   dateInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18 },
