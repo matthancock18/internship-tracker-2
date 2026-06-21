@@ -472,7 +472,7 @@ export default function ApplicationsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerContainer, { paddingTop: insets.top + SP[2] }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
         <Text style={styles.appName}>Trax</Text>
         <Text style={styles.header}>Applications</Text>
         <TextInput

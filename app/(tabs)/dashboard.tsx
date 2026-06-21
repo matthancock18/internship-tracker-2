@@ -153,7 +153,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerContainer, { paddingTop: insets.top + SP[2] }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
         <Text style={styles.appName}>Trax</Text>
         <Text style={styles.header}>Dashboard</Text>
       </View>
