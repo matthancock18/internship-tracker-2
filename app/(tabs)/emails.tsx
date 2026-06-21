@@ -1,8 +1,10 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
 import { useContext, useState } from 'react';
 import { Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { SP, Type } from '../../constants/designSystem';
 import { ApplicationsContext } from './_layout';
 
 export default function EmailsScreen() {
@@ -66,6 +68,7 @@ export default function EmailsScreen() {
       Alert.alert('Missing Info', 'Please enter at least a company name.');
       return;
     }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setEmails([...emails, { company, contactName, dateSent, response, coffeeChat, followUpDate, notes }]);
     setCompany('');
     setContactName('');
@@ -84,13 +87,16 @@ export default function EmailsScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           setEmails(emails.filter((_, i) => i !== index));
+          setEditModalVisible(false);
         }},
       ]
     );
   };
 
   const handleOpenEdit = (email, index) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditIndex(index);
     setEditCompany(email.company);
     setEditContactName(email.contactName || '');
@@ -155,7 +161,7 @@ export default function EmailsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
-        <Text style={styles.appName}>App Trax</Text>
+        <Text style={styles.appName}>Trax</Text>
         <Text style={styles.header}>Emails</Text>
       </View>
 
@@ -185,7 +191,8 @@ export default function EmailsScreen() {
           emails.map((email, index) => (
             <Swipeable
               key={index}
-              renderRightActions={() => renderRightActions(index)}>
+              renderRightActions={() => renderRightActions(index)}
+              onSwipeableWillOpen={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
               <TouchableOpacity style={styles.card} onPress={() => handleOpenEdit(email, index)}>
                 <Text style={styles.company}>{email.company}</Text>
                 {email.contactName ? <Text style={styles.contact}>To: {email.contactName}</Text> : null}
@@ -261,11 +268,11 @@ export default function EmailsScreen() {
           {followUpPickerVisible && (
             <View style={styles.datePickerContainer}>
               <DateTimePicker
-  value={selectedDate}
+  value={selectedFollowUp}
   mode="date"
   display="inline"
   locale="en-US"
-  onChange={handleDateChange}
+  onChange={handleFollowUpChange}
   textColor="#0F172A"
   accentColor="#0EA5E9"
   themeVariant="light"
@@ -296,7 +303,7 @@ export default function EmailsScreen() {
         </ScrollView>
       </Modal>
 
-      <Modal visible={editModalVisible} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={editModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setEditModalVisible(false)}>
         <ScrollView style={styles.modalContainer}>
   <View style={styles.modalHandle} />
   <View style={styles.modalTitleRow}>
@@ -320,7 +327,7 @@ export default function EmailsScreen() {
           </TouchableOpacity>
           {editDateSentPickerVisible && (
             <View style={styles.datePickerContainer}>
-              <DateTimePicker value={editSelectedDateSent} mode="date" display="spinner" onChange={handleEditDateSentChange} textColor="#0F172A" />
+              <DateTimePicker value={editSelectedDateSent} mode="date" display="inline" locale="en-US" onChange={handleEditDateSentChange} textColor="#0F172A" accentColor="#0EA5E9" themeVariant="light" />
               <TouchableOpacity style={styles.dateConfirmButton} onPress={() => setEditDateSentPickerVisible(false)}>
                 <Text style={styles.dateConfirmText}>✓ Confirm Date</Text>
               </TouchableOpacity>
@@ -335,7 +342,7 @@ export default function EmailsScreen() {
           </TouchableOpacity>
           {editFollowUpPickerVisible && (
             <View style={styles.datePickerContainer}>
-              <DateTimePicker value={editSelectedFollowUp} mode="date" display="spinner" onChange={handleEditFollowUpChange} textColor="#000000" />
+              <DateTimePicker value={editSelectedFollowUp} mode="date" display="inline" locale="en-US" onChange={handleEditFollowUpChange} textColor="#0F172A" accentColor="#0EA5E9" themeVariant="light" />
               <TouchableOpacity style={styles.dateConfirmButton} onPress={() => setEditFollowUpPickerVisible(false)}>
                 <Text style={styles.dateConfirmText}>✓ Confirm Date</Text>
               </TouchableOpacity>
@@ -368,57 +375,74 @@ export default function EmailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  // ── Screen shell ──
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  headerContainer: { backgroundColor: '#0F172A', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
-  appName: { fontSize: 13, color: '#0EA5E9', fontWeight: 'bold', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
-  header: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
-  scrollView: { flex: 1, padding: 16 },
+  headerContainer: { backgroundColor: '#0F172A', paddingTop: 60, paddingBottom: SP[4], paddingHorizontal: SP[6] },
+  appName: { ...Type.appBrand },
+  header: { ...Type.screenTitle },
+  scrollView: { flex: 1, padding: SP[4] },
+
+  // ── Empty state ──
   emptyContainer: { alignItems: 'center', marginTop: 80 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  empty: { color: '#0F172A', fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
-  emptySub: { color: '#64748B', fontSize: 14, textAlign: 'center' },
-  card: { backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0' },
-  company: { fontSize: 17, fontWeight: 'bold', color: '#0F172A', marginBottom: 4 },
-  contact: { fontSize: 14, color: '#64748B', marginBottom: 4 },
-  detail: { fontSize: 12, color: '#94A3B8', marginBottom: 6 },
-  tagRow: { flexDirection: 'row', gap: 8, marginBottom: 6 },
-  tag: { backgroundColor: '#F1F5F9', borderRadius: 20, paddingVertical: 3, paddingHorizontal: 10 },
+  emptyIcon: { fontSize: 48, marginBottom: SP[3] },
+  empty: { ...Type.cardTitle, fontSize: 18, marginBottom: SP[2] },
+  emptySub: { ...Type.cardSubtitle, textAlign: 'center', marginBottom: 0 },
+
+  // ── Cards ──
+  card: { backgroundColor: '#FFFFFF', padding: SP[4], borderRadius: 12, marginBottom: SP[2] + 2, borderWidth: 1, borderColor: '#E2E8F0' },
+  company: { ...Type.cardTitle, marginBottom: SP[1] },
+  contact: { ...Type.cardSubtitle, marginBottom: SP[1] },
+  detail: { ...Type.cardMeta, marginBottom: SP[1] + 2 },
+  tagRow: { flexDirection: 'row', gap: SP[2], marginBottom: SP[1] + 2 },
+  tag: { backgroundColor: '#F1F5F9', borderRadius: 20, paddingVertical: 3, paddingHorizontal: SP[2] + 2 },
   tagText: { fontSize: 12, color: '#64748B' },
   tagGreen: { backgroundColor: '#DCFCE7' },
   tagTextGreen: { color: '#16A34A' },
   tagBlue: { backgroundColor: '#E0F2FE' },
   tagTextBlue: { color: '#0369A1' },
-  followUp: { fontSize: 12, color: '#F59E0B', marginBottom: 4 },
-  notes: { fontSize: 13, color: '#94A3B8', fontStyle: 'italic', marginTop: 4 },
-  deleteButton: { backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: 12, marginBottom: 10 },
+  followUp: { fontSize: 12, color: '#F59E0B', marginBottom: SP[1] },
+  notes: { fontSize: 13, color: '#94A3B8', fontStyle: 'italic', marginTop: SP[1] },
+
+  // ── Swipe-to-delete ──
+  deleteButton: { backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: 12, marginBottom: SP[2] + 2 },
   deleteText: { fontSize: 22 },
-  deleteLabel: { fontSize: 11, color: '#EF4444', fontWeight: 'bold' },
-  fab: { position: 'absolute', bottom: 24, right: 24, width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
+  deleteLabel: { fontSize: 11, color: '#EF4444', fontWeight: '700' },
+
+  // ── FAB ──
+  fab: { position: 'absolute', bottom: SP[6], right: SP[6], width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
   fabText: { color: 'white', fontSize: 32, fontWeight: '300', lineHeight: 36 },
-  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 12, paddingHorizontal: 20 },
-  modalHeader: { fontSize: 26, fontWeight: 'bold', color: '#0F172A' },
-  inputLabel: { fontSize: 13, fontWeight: 'bold', color: '#64748B', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
-  input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18, fontSize: 16, color: '#0F172A' },
+
+  // ── Modal shell ──
+  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: SP[3], paddingHorizontal: SP[6] },
+  modalHandle: { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginTop: SP[2], marginBottom: SP[4] },
+  modalHeader: { ...Type.modalTitle },
+  modalTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SP[6] },
+  closeButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  closeButtonText: { fontSize: 14, color: '#64748B', fontWeight: '600' },
+
+  // ── Form fields ──
+  inputLabel: { ...Type.label },
+  input: { ...Type.body, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: SP[3] + 2, marginBottom: 18 },
   notesInput: { height: 100, textAlignVertical: 'top' },
-  dateInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18 },
-  dateText: { fontSize: 16, color: '#0F172A' },
+  dateInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: SP[3] + 2, marginBottom: 18 },
+  dateText: { ...Type.body },
   datePlaceholder: { fontSize: 16, color: '#64748B' },
   datePickerContainer: { backgroundColor: '#FFFFFF', borderRadius: 10, marginBottom: 18, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0' },
-  dateConfirmButton: { backgroundColor: '#0EA5E9', padding: 12, alignItems: 'center' },
-  dateConfirmText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  dateConfirmButton: { backgroundColor: '#0EA5E9', padding: SP[3], alignItems: 'center' },
+  dateConfirmText: { ...Type.buttonLabel },
+
+  // ── Yes/No toggle ──
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SP[3] + 2 },
   toggleLabel: { fontSize: 15, color: '#0F172A', fontWeight: '500' },
-  toggleButtons: { flexDirection: 'row', gap: 8 },
+  toggleButtons: { flexDirection: 'row', gap: SP[2] },
   toggleButton: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 18, backgroundColor: '#FFFFFF' },
   toggleActive: { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
   toggleText: { color: '#64748B', fontSize: 14 },
-  toggleTextActive: { color: 'white', fontWeight: 'bold' },
-  saveButton: { backgroundColor: '#0EA5E9', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  saveButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  cancelButton: { alignItems: 'center', marginTop: 12 },
-  cancelText: { color: '#64748B', fontSize: 16 },
- modalHandle: { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 16 },
-modalTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-closeButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
-closeButtonText: { fontSize: 14, color: '#64748B', fontWeight: '600' },
+  toggleTextActive: { color: 'white', fontWeight: '700' },
+
+  // ── Action buttons ──
+  saveButton: { backgroundColor: '#0EA5E9', padding: SP[4], borderRadius: 12, alignItems: 'center', marginTop: SP[2] + 2 },
+  saveButtonText: { ...Type.buttonLabel },
+  cancelButton: { alignItems: 'center', marginTop: SP[3] },
+  cancelText: { ...Type.link },
 });

@@ -1,20 +1,23 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
-import { useContext, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { ActionSheetIOS, ActivityIndicator, Alert, Animated, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import Svg, { Circle, Rect } from 'react-native-svg';
+import { SP, SPRING_CONFIG, TIMING_CONFIG, Type } from '../../constants/designSystem';
 import { ApplicationsContext } from './_layout';
 
 export default function ApplicationsScreen() {
-  const { applications, setApplications, scannedImageUri, setScannedImageUri, setScanRequested } = useContext(ApplicationsContext);
+  const { applications, setApplications, scannedImageUri, setScannedImageUri, setScanSource } = useContext(ApplicationsContext);
   const [modalVisible, setModalVisible] = useState(false);
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
   const [dateApplied, setDateApplied] = useState('');
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [status, setStatus] = useState('Applied');
+  const [status, setStatus] = useState<string>('Applied');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [editCompany, setEditCompany] = useState('');
@@ -24,11 +27,31 @@ export default function ApplicationsScreen() {
   const [editDatePickerVisible, setEditDatePickerVisible] = useState(false);
   const [editStatus, setEditStatus] = useState('Applied');
   const [activeFilter, setActiveFilter] = useState('All');
+  const [searchText, setSearchText] = useState('');
   const [scanning, setScanning] = useState(false);
+  const swipeableRefs = useRef<(Swipeable | null)[]>([]);
 
-  const statuses = ['Not Yet Open', 'Applied', 'Interview', 'Offer', 'Rejected'];
+  // ── Card animations — parallel array to `applications` ──
+  const cardAnims = useRef<Animated.Value[]>([]);
+
+  // Populate anims at value 1 when data first loads from storage
+  useEffect(() => {
+    if (cardAnims.current.length === 0 && applications.length > 0) {
+      cardAnims.current = applications.map(() => new Animated.Value(1));
+    }
+  }, [applications]);
+
+  // Follow-up date for add modal
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpSelectedDate, setFollowUpSelectedDate] = useState(new Date());
+  const [followUpPickerVisible, setFollowUpPickerVisible] = useState(false);
+  // Follow-up date for edit modal
+  const [editFollowUpDate, setEditFollowUpDate] = useState('');
+  const [editFollowUpSelectedDate, setEditFollowUpSelectedDate] = useState(new Date());
+  const [editFollowUpPickerVisible, setEditFollowUpPickerVisible] = useState(false);
+
+  const statuses = ['Applied', 'Interview', 'Offer', 'Rejected'];
   const statusColors = {
-    'Not Yet Open': '#64748B',
     'Applied': '#0EA5E9',
     'Interview': '#F59E0B',
     'Offer': '#10B981',
@@ -37,6 +60,30 @@ export default function ApplicationsScreen() {
 
   const formatDate = (date) =>
     date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const scheduleFollowUpNotification = async (company: string, role: string, followUpDateStr: string): Promise<string | null> => {
+    try {
+      const date = new Date(followUpDateStr);
+      if (isNaN(date.getTime()) || date <= new Date()) return null;
+      date.setHours(9, 0, 0, 0);
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Follow-up Reminder',
+          body: `Follow up on your ${role} application at ${company}`,
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date },
+      });
+      return id;
+    } catch {
+      return null;
+    }
+  };
+
+  const cancelFollowUpNotification = async (notificationId: string | undefined) => {
+    if (notificationId) {
+      try { await Notifications.cancelScheduledNotificationAsync(notificationId); } catch {}
+    }
+  };
 
   const handleDateChange = (event, date) => {
     if (event.type === 'dismissed') { setDatePickerVisible(false); return; }
@@ -55,143 +102,250 @@ export default function ApplicationsScreen() {
   // ── OCR Parser ──
   const parseOCRText = (text: string) => {
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const lowerText = text.toLowerCase();
 
     let detectedCompany = '';
     let detectedRole = '';
-    let detectedDate = '';
 
+    // ── Helpers ──
+    const isSentence = (s: string) =>
+      /\b(we|you|your|they|our|have|has|are|is|was|will|please|thank|dear|hello|hi|excited|happy|pleased|invite|look forward)\b/i.test(s);
+
+    const cleanRole = (s: string) =>
+      s.replace(/^(?:for the|for a|for an|the|a|an)\s+/i, '')
+       .replace(/\s+(?:position|role|opportunity|opening|posting|job)\.?$/i, '')
+       .replace(/^(?:position|role|title)[:\s]+/i, '')
+       .trim();
+
+    const cleanCompany = (s: string) =>
+      s.replace(/[,\.!?]+$/, '')
+       .replace(/\s*\(.*?\)\s*$/, '')
+       .trim();
+
+    const isLikelyRole = (s: string) => {
+      const low = s.toLowerCase();
+      return (
+        roleKeywords.some(k => low.includes(k)) &&
+        !isSentence(s) &&
+        s.length >= 4 &&
+        s.length <= 80
+      );
+    };
+
+    // ── Keywords ──
     const roleKeywords = [
       'intern', 'internship', 'engineer', 'developer', 'analyst', 'associate',
       'coordinator', 'manager', 'designer', 'scientist', 'consultant', 'specialist',
-      'assistant', 'director', 'officer', 'architect', 'lead', 'head', 'off-cycle',
+      'assistant', 'director', 'officer', 'architect', 'lead', 'researcher',
+      'quantitative', 'quant', 'software', 'product', 'data', 'devops',
+      'full-stack', 'full stack', 'frontend', 'backend', 'swe', 'sde', 'mle',
+      'off-cycle', 'co-op', 'coop', 'placement', 'graduate', 'trainee',
     ];
 
-    const companyKeywords = [
-      'inc', 'llc', 'corp', 'ltd', 'co.', 'company', 'technologies', 'tech',
-      'group', 'solutions', 'labs', 'studio', 'studios', 'sachs', 'stanley',
-      'fargo', 'chase', 'capital', 'partners', 'ventures', 'bank', 'financial',
+    const knownCompanies: [string, string][] = [
+      // Big tech
+      ['google', 'Google'], ['alphabet', 'Alphabet'], ['youtube', 'YouTube'],
+      ['apple', 'Apple'], ['microsoft', 'Microsoft'], ['amazon', 'Amazon'],
+      ['aws', 'AWS'], ['meta', 'Meta'], ['facebook', 'Meta'], ['instagram', 'Meta'],
+      ['netflix', 'Netflix'], ['tesla', 'Tesla'], ['uber', 'Uber'], ['lyft', 'Lyft'],
+      ['airbnb', 'Airbnb'], ['stripe', 'Stripe'], ['square', 'Square'], ['block', 'Block'],
+      ['twitter', 'Twitter'], ['x corp', 'X'], ['snapchat', 'Snapchat'],
+      ['pinterest', 'Pinterest'], ['linkedin', 'LinkedIn'], ['spotify', 'Spotify'],
+      ['shopify', 'Shopify'], ['palantir', 'Palantir'], ['databricks', 'Databricks'],
+      ['snowflake', 'Snowflake'], ['confluent', 'Confluent'], ['datadog', 'Datadog'],
+      ['cloudflare', 'Cloudflare'], ['nvidia', 'NVIDIA'], ['amd', 'AMD'],
+      ['intel', 'Intel'], ['qualcomm', 'Qualcomm'], ['arm', 'ARM'],
+      ['ibm', 'IBM'], ['cisco', 'Cisco'], ['oracle', 'Oracle'], ['adobe', 'Adobe'],
+      ['salesforce', 'Salesforce'], ['servicenow', 'ServiceNow'], ['workday', 'Workday'],
+      ['zoom', 'Zoom'], ['slack', 'Slack'], ['atlassian', 'Atlassian'],
+      ['vmware', 'VMware'], ['twilio', 'Twilio'], ['okta', 'Okta'],
+      ['splunk', 'Splunk'], ['palo alto networks', 'Palo Alto Networks'],
+      ['crowdstrike', 'CrowdStrike'], ['intuit', 'Intuit'], ['paypal', 'PayPal'],
+      ['ebay', 'eBay'], ['doordash', 'DoorDash'], ['instacart', 'Instacart'],
+      ['roblox', 'Roblox'], ['epic games', 'Epic Games'], ['riot games', 'Riot Games'],
+      // Finance
+      ['goldman sachs', 'Goldman Sachs'], ['morgan stanley', 'Morgan Stanley'],
+      ['jpmorgan', 'JPMorgan'], ['jp morgan', 'JPMorgan'],
+      ['blackrock', 'BlackRock'], ['blackstone', 'Blackstone'],
+      ['citadel', 'Citadel'], ['two sigma', 'Two Sigma'], ['jane street', 'Jane Street'],
+      ['point72', 'Point72'], ['aqr', 'AQR Capital'], ['d.e. shaw', 'D.E. Shaw'],
+      ['de shaw', 'D.E. Shaw'], ['bridgewater', 'Bridgewater'],
+      ['virtu', 'Virtu Financial'], ['jump trading', 'Jump Trading'],
+      ['wells fargo', 'Wells Fargo'], ['bank of america', 'Bank of America'],
+      ['citibank', 'Citi'], ['citi', 'Citi'], ['barclays', 'Barclays'],
+      ['hsbc', 'HSBC'], ['ubs', 'UBS'], ['deutsche bank', 'Deutsche Bank'],
+      ['bloomberg', 'Bloomberg'], ['fidelity', 'Fidelity'],
+      ['vanguard', 'Vanguard'], ['charles schwab', 'Charles Schwab'],
+      // Consulting
+      ['mckinsey', 'McKinsey'], ['bain', 'Bain & Company'],
+      ['bcg', 'BCG'], ['boston consulting', 'BCG'],
+      ['deloitte', 'Deloitte'], ['accenture', 'Accenture'],
+      ['pwc', 'PwC'], ['kpmg', 'KPMG'], ['ey', 'EY'],
+      ['ernst & young', 'EY'], ['oliver wyman', 'Oliver Wyman'],
     ];
 
-    const knownCompanies = [
-      'goldman sachs', 'morgan stanley', 'apple', 'google', 'microsoft', 'amazon',
-      'meta', 'netflix', 'tesla', 'uber', 'airbnb', 'stripe', 'jpmorgan', 'blackrock',
-      'deloitte', 'mckinsey', 'bain', 'bcg', 'accenture', 'salesforce', 'oracle',
-      'citibank', 'citi', 'wells fargo', 'bank of america', 'barclays', 'hsbc',
-      'bloomberg', 'blackstone', 'citadel', 'two sigma', 'jane street', 'palantir',
-      'spotify', 'linkedin', 'twitter', 'snapchat', 'pinterest', 'shopify', 'square',
-      'nvidia', 'amd', 'intel', 'qualcomm', 'ibm', 'cisco', 'adobe', 'vmware',
-    ];
+    const domainToCompany: Record<string, string> = {
+      google: 'Google', youtube: 'YouTube', alphabet: 'Alphabet',
+      apple: 'Apple', microsoft: 'Microsoft', amazon: 'Amazon',
+      meta: 'Meta', facebook: 'Meta', netflix: 'Netflix',
+      tesla: 'Tesla', uber: 'Uber', lyft: 'Lyft', airbnb: 'Airbnb',
+      stripe: 'Stripe', linkedin: 'LinkedIn', spotify: 'Spotify',
+      shopify: 'Shopify', palantir: 'Palantir', nvidia: 'NVIDIA',
+      intel: 'Intel', qualcomm: 'Qualcomm', ibm: 'IBM', cisco: 'Cisco',
+      oracle: 'Oracle', adobe: 'Adobe', salesforce: 'Salesforce',
+      twilio: 'Twilio', okta: 'Okta', zoom: 'Zoom', slack: 'Slack',
+      atlassian: 'Atlassian', intuit: 'Intuit', paypal: 'PayPal',
+      ebay: 'eBay', doordash: 'DoorDash', roblox: 'Roblox',
+      datadog: 'Datadog', cloudflare: 'Cloudflare', databricks: 'Databricks',
+      snowflake: 'Snowflake', crowdstrike: 'CrowdStrike',
+      goldmansachs: 'Goldman Sachs', morganstanley: 'Morgan Stanley',
+      jpmorgan: 'JPMorgan', blackrock: 'BlackRock', blackstone: 'Blackstone',
+      citadel: 'Citadel', bloomberg: 'Bloomberg', fidelity: 'Fidelity',
+      wellsfargo: 'Wells Fargo', bankofamerica: 'Bank of America',
+      barclays: 'Barclays', hsbc: 'HSBC', deloitte: 'Deloitte',
+      accenture: 'Accenture', mckinsey: 'McKinsey', bain: 'Bain & Company',
+      bcg: 'BCG', pwc: 'PwC', kpmg: 'KPMG',
+    };
 
-    const datePatterns = [
-      /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2},?\s+\d{4}\b/i,
-      /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/,
-      /\b\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\b/,
-    ];
+    const personalDomains = new Set([
+      'gmail', 'yahoo', 'outlook', 'hotmail', 'icloud', 'proton',
+      'me', 'noreply', 'no-reply', 'donotreply', 'notifications',
+      'mailer', 'mail', 'careers', 'jobs', 'talent', 'recruiting',
+      'hr', 'info', 'hello', 'contact', 'apply',
+    ]);
 
-    const fullText = text.toLowerCase();
-
-    // 1. Check known companies against full text (handles multi-word names)
-    for (const known of knownCompanies) {
-      if (fullText.includes(known)) {
-        detectedCompany = known.replace(/\b\w/g, c => c.toUpperCase());
-        break;
+    // ── PASS 1: Explicit labeled fields ──
+    for (const line of lines) {
+      if (!detectedCompany) {
+        const m = line.match(/^(?:company|employer|organization|firm|from)\s*[:\-]\s*(.+)/i);
+        if (m) detectedCompany = cleanCompany(m[1].trim());
+      }
+      if (!detectedRole) {
+        const m = line.match(/^(?:position|role|job\s*title|title|applying\s+for|applied\s+for|application\s+for)\s*[:\-]\s*(.+)/i);
+        if (m) detectedRole = cleanRole(m[1].trim());
       }
     }
 
-    // 2. Check domain name (e.g. goldmansachs.com -> Goldman Sachs)
+    // ── PASS 2: Known companies in full text ──
     if (!detectedCompany) {
-      const domainMatch = text.match(/([a-zA-Z]+)\.com/i);
-      if (domainMatch) {
-        const domain = domainMatch[1].toLowerCase();
-        const domainToCompany: Record<string, string> = {
-          goldmansachs: 'Goldman Sachs',
-          morganstanley: 'Morgan Stanley',
-          jpmorgan: 'JPMorgan',
-          wellsfargo: 'Wells Fargo',
-          bankofamerica: 'Bank of America',
-          bloomberg: 'Bloomberg',
-          blackstone: 'Blackstone',
-          citadel: 'Citadel',
-          palantir: 'Palantir',
-          deloitte: 'Deloitte',
-          accenture: 'Accenture',
-          salesforce: 'Salesforce',
-          linkedin: 'LinkedIn',
-          spotify: 'Spotify',
-          shopify: 'Shopify',
-          nvidia: 'NVIDIA',
-        };
+      for (const [key, label] of knownCompanies) {
+        if (lowerText.includes(key)) {
+          detectedCompany = label;
+          break;
+        }
+      }
+    }
+
+    // ── PASS 3: Sentence patterns — "Role at Company" ──
+    const atPatterns = [
+      // "applied for the Software Engineer Intern position at Google"
+      /(?:applied?|applying)\s+(?:to\s+)?(?:for\s+)?(?:the\s+|a\s+|an\s+)?(.+?)\s+(?:position|role|opportunity|job|opening)?\s*(?:at|with|@)\s+([A-Z][A-Za-z0-9 &.,'()-]+?)(?=\s*[,\.\n!]|$)/i,
+      // "application for Software Engineer at Amazon has been received"
+      /application\s+(?:received\s+)?(?:for|to)\s+(?:the\s+)?(.+?)\s+(?:at|with|@)\s+([A-Z][A-Za-z0-9 &.,'()-]+?)(?=\s*[,\.\n!]|$)/i,
+      // standalone "Software Engineer Intern at Google"
+      /\b((?:[A-Z][a-zA-Z-]+ ){1,5}(?:Intern(?:ship)?|Engineer|Developer|Analyst|Manager|Designer|Scientist|Specialist|Associate|Consultant|Director|Researcher|Coordinator))\s+at\s+([A-Z][A-Za-z0-9 &.,'()-]+?)(?=\s*[,\.\n!]|$)/,
+      // "thank you for your interest in the Data Analyst role at Stripe"
+      /interest\s+in\s+(?:the\s+|a\s+)?(.+?)\s+(?:role|position|opportunity)?\s*(?:at|with)\s+([A-Z][A-Za-z0-9 &.,'()-]+?)(?=\s*[,\.\n!]|$)/i,
+    ];
+
+    for (const pattern of atPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const roleCandidate = cleanRole(match[1].trim());
+        const companyCandidate = cleanCompany(match[2].trim());
+        if (!detectedRole && isLikelyRole(roleCandidate)) detectedRole = roleCandidate;
+        if (!detectedCompany && companyCandidate.length >= 2 && !isSentence(companyCandidate)) {
+          detectedCompany = companyCandidate;
+        }
+        if (detectedRole && detectedCompany) break;
+      }
+    }
+
+    // ── PASS 4: Email / domain extraction ──
+    if (!detectedCompany) {
+      const emailMatch = text.match(/[\w.+-]+@([\w-]+)\.(?:com|io|co|org|net|jobs|ai|tech)/i);
+      if (emailMatch) {
+        const domain = emailMatch[1].toLowerCase().replace(/-/g, '');
         if (domainToCompany[domain]) {
           detectedCompany = domainToCompany[domain];
-        } else {
-          console.log('Domain match:', domainMatch ? domainMatch[1] : 'none');
-          // Capitalize domain as fallback company name
+        } else if (!personalDomains.has(domain) && domain.length > 2) {
           detectedCompany = domain.charAt(0).toUpperCase() + domain.slice(1);
         }
       }
     }
+    if (!detectedCompany) {
+      const domainMatch = text.match(/\b([\w-]+)\.(?:com|io|co\.uk|org|ai)\b/i);
+      if (domainMatch) {
+        const d = domainMatch[1].toLowerCase().replace(/-/g, '');
+        if (domainToCompany[d]) detectedCompany = domainToCompany[d];
+      }
+    }
 
-    // 3. Line-by-line scan for role, company keywords, and dates
+    // ── PASS 5: Line-by-line scan ──
     for (const line of lines) {
-      const lower = line.toLowerCase();
-
-      // Role detection
-      if (!detectedRole && roleKeywords.some(k => lower.includes(k))) {
-        if (line.length > 5 && !lower.match(/^(internship|engineer|analyst|associate)$/)) {
-          detectedRole = line;
-        }
+      // Role: prefer standalone title lines
+      if (!detectedRole && isLikelyRole(line)) {
+        detectedRole = cleanRole(line);
       }
 
-      // Company from line keywords (if not found yet)
-      if (!detectedCompany && companyKeywords.some(k => lower.includes(k))) {
-        detectedCompany = line.replace(/^(from|company|employer|organization|at|@)\s*[:\-]?\s*/i, '').trim();
-      }
-
-      // Date detection
-      if (!detectedDate) {
-        for (const pattern of datePatterns) {
-          const match = line.match(pattern);
-          if (match) {
-            const parsed = new Date(match[0]);
-            if (!isNaN(parsed.getTime())) {
-              detectedDate = formatDate(parsed);
-            } else {
-              detectedDate = match[0];
-            }
-            break;
+      // Company: lines ending with a corporate suffix
+      if (!detectedCompany) {
+        const corpSuffixMatch = line.match(/^(.+?)\s*,?\s*(?:Inc\.?|LLC\.?|LLP\.?|Corp\.?|Ltd\.?|Limited|Technologies|Solutions|Capital|Partners|Ventures|Financial|Group|Holdings)\.?$/i);
+        if (corpSuffixMatch) {
+          const candidate = cleanCompany(line);
+          if (candidate.length >= 2 && candidate.length <= 60 && !isSentence(candidate)) {
+            detectedCompany = candidate;
           }
         }
       }
+
     }
 
-    // 4. Fallback: first clean short line as company (skip timestamps, UI text)
-    if (!detectedCompany && lines.length > 0) {
-      const firstShortLine = lines.find(l =>
-        l.length > 2 && l.length < 40 &&
-        !l.match(/^(\d+:\d+|dear|hi|hello|to|from|date|re:|subject|share|application|eligibility|internship|whether|we |our )/i)
-      );
-      if (firstShortLine) detectedCompany = firstShortLine;
+    // ── PASS 6: Guarded company fallback ──
+    // Only grab a short capitalized line from the first 8 lines as a last resort
+    if (!detectedCompany) {
+      const noisePattern = /^(?:\d|\d{1,2}:\d{2}|dear|hi |hello|to:|from:|date:|re:|subject:|share|via |the |a |an |application|internship|job|position|career|congratulations|thank|we |our |your |you )/i;
+      for (const line of lines.slice(0, 8)) {
+        if (
+          line.length >= 2 && line.length <= 45 &&
+          /^[A-Z]/.test(line) &&
+          !isSentence(line) &&
+          !/^\d/.test(line) &&
+          !noisePattern.test(line)
+        ) {
+          detectedCompany = cleanCompany(line);
+          break;
+        }
+      }
     }
 
-    return { detectedCompany, detectedRole, detectedDate };
+    return { detectedCompany, detectedRole };
   };
 
   // ── OCR Scan Handler ──
-  const handleScan = async () => {
-    setModalVisible(false);
-    setTimeout(() => setScanRequested(true), 300);
+  const handleScan = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Cancel', 'Take Photo', 'Choose from Library'], cancelButtonIndex: 0 },
+        (buttonIndex) => {
+          if (buttonIndex === 1) { setModalVisible(false); setTimeout(() => setScanSource('camera'), 300); }
+          if (buttonIndex === 2) { setModalVisible(false); setTimeout(() => setScanSource('library'), 300); }
+        }
+      );
+    } else {
+      Alert.alert('Scan Document', 'Choose an option', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Take Photo', onPress: () => { setModalVisible(false); setTimeout(() => setScanSource('camera'), 300); } },
+        { text: 'Choose from Library', onPress: () => { setModalVisible(false); setTimeout(() => setScanSource('library'), 300); } },
+      ]);
+    }
   };
 
   const processImage = async (uri: string) => {
     setScanning(true);
-    console.log('processImage called with uri:', uri);
     try {
-      console.log('Calling TextRecognition.recognize...');
       const result = await TextRecognition.recognize(uri);
-      console.log('Recognition complete');
       const text = result.text;
-      console.log('OCR lines:', text.split('\n').map((l, i) => `${i}: "${l.trim()}"`).join('\n'));
-      console.log('OCR raw text:', text);
 
       if (!text || text.trim().length === 0) {
         Alert.alert('No text found', 'Could not detect any text in this image. Try a clearer photo.');
@@ -199,60 +353,105 @@ export default function ApplicationsScreen() {
         return;
       }
 
-      const { detectedCompany, detectedRole, detectedDate } = parseOCRText(text);
+      const { detectedCompany, detectedRole } = parseOCRText(text);
 
       if (detectedCompany) setCompany(detectedCompany);
       if (detectedRole) setRole(detectedRole);
-      if (detectedDate) setDateApplied(detectedDate);
 
       if (!detectedCompany && !detectedRole) {
         Alert.alert('Could not parse', "Text was detected but couldn't identify company or role. Please fill in the fields manually.");
       }
     } catch (e) {
       Alert.alert('Scan failed', 'Something went wrong. Please try again or fill in manually.');
-      console.log('OCR error:', e);
     }
     setScanning(false);
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!company || !role) {
       Alert.alert('Missing Info', 'Please enter at least a company and role.');
       return;
     }
-    setApplications([...applications, { company, role, dateApplied, status }]);
-    setCompany(''); setRole(''); setDateApplied('');
-    setSelectedDate(new Date()); setStatus('Applied');
+    const notificationId = followUpDate
+      ? await scheduleFollowUpNotification(company, role, followUpDate)
+      : null;
+
+    // Create entrance animation before state update so the value exists on first render
+    const entranceAnim = new Animated.Value(0);
+    cardAnims.current.push(entranceAnim);
+
+    setApplications([...applications, { company, role, dateApplied, status, followUpDate, notificationId }]);
+    setCompany(''); setRole(''); setDateApplied(''); setFollowUpDate('');
+    setSelectedDate(new Date()); setFollowUpSelectedDate(new Date()); setStatus('Applied');
     setModalVisible(false);
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Animated.spring(entranceAnim, { toValue: 1, ...SPRING_CONFIG }).start();
   };
 
-  const handleDelete = (index) => {
+  const handleDelete = (index: number) => {
     Alert.alert('Delete Application', 'Are you sure you want to delete this application?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () =>
-          setApplications(applications.filter((_, i) => i !== index)) },
+      { text: 'Cancel', style: 'cancel', onPress: () => swipeableRefs.current.forEach(ref => ref?.close()) },
+      { text: 'Delete', style: 'destructive', onPress: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          setEditModalVisible(false);
+          const anim = cardAnims.current[index];
+          const doDelete = () => {
+            cancelFollowUpNotification(applications[index]?.notificationId);
+            cardAnims.current.splice(index, 1);
+            setApplications(prev => prev.filter((_, i) => i !== index));
+          };
+          if (anim) {
+            Animated.timing(anim, { toValue: 0, ...TIMING_CONFIG }).start(doDelete);
+          } else {
+            doDelete();
+          }
+        }},
     ]);
   };
 
   const handleOpenEdit = (app, index) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditIndex(index);
     setEditCompany(app.company);
     setEditRole(app.role);
     setEditDateApplied(app.dateApplied || '');
     setEditSelectedDate(app.dateApplied ? new Date(app.dateApplied) : new Date());
     setEditStatus(app.status);
+    setEditFollowUpDate(app.followUpDate || '');
+    setEditFollowUpSelectedDate(app.followUpDate ? new Date(app.followUpDate) : new Date());
     setEditModalVisible(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editCompany || !editRole) {
       Alert.alert('Missing Info', 'Please enter at least a company and role.');
       return;
     }
+    const existing = applications[editIndex];
+    // Cancel old notification if follow-up date changed
+    if (existing?.notificationId && existing.followUpDate !== editFollowUpDate) {
+      cancelFollowUpNotification(existing.notificationId);
+    }
+    const notificationId = editFollowUpDate && editFollowUpDate !== existing?.followUpDate
+      ? await scheduleFollowUpNotification(editCompany, editRole, editFollowUpDate)
+      : (editFollowUpDate ? existing?.notificationId : null);
     const updated = [...applications];
-    updated[editIndex] = { company: editCompany, role: editRole, dateApplied: editDateApplied, status: editStatus };
+    updated[editIndex] = { company: editCompany, role: editRole, dateApplied: editDateApplied, status: editStatus, followUpDate: editFollowUpDate, notificationId };
     setApplications(updated);
     setEditModalVisible(false);
+  };
+
+  const handleFollowUpDateChange = (event, date) => {
+    if (event.type === 'dismissed') { setFollowUpPickerVisible(false); return; }
+    if (date) { setFollowUpSelectedDate(date); setFollowUpDate(formatDate(date)); }
+    if (Platform.OS === 'android') setFollowUpPickerVisible(false);
+  };
+
+  const handleEditFollowUpDateChange = (event, date) => {
+    if (event.type === 'dismissed') { setEditFollowUpPickerVisible(false); return; }
+    if (date) { setEditFollowUpSelectedDate(date); setEditFollowUpDate(formatDate(date)); }
+    if (Platform.OS === 'android') setEditFollowUpPickerVisible(false);
   };
 
   const handleEditDateChange = (event, date) => {
@@ -268,15 +467,30 @@ export default function ApplicationsScreen() {
     </TouchableOpacity>
   );
 
-  const filtered = applications.filter(
-    (a) => activeFilter === 'All' || a.status === activeFilter
-  );
+  const filtered = applications
+    .map((app, origIdx) => ({ app, origIdx }))
+    .filter(({ app }) => activeFilter === 'All' || app.status === activeFilter)
+    .filter(({ app }) => {
+      if (!searchText) return true;
+      const q = searchText.toLowerCase();
+      return app.company?.toLowerCase().includes(q) || app.role?.toLowerCase().includes(q);
+    })
+    .reverse();
 
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
-        <Text style={styles.appName}>App Trax</Text>
+        <Text style={styles.appName}>Trax</Text>
         <Text style={styles.header}>Applications</Text>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search company or role..."
+          placeholderTextColor="rgba(255,255,255,0.4)"
+          value={searchText}
+          onChangeText={setSearchText}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -292,7 +506,12 @@ export default function ApplicationsScreen() {
                   borderColor: f === 'All' ? '#0EA5E9' : statusColors[f],
                 },
               ]}
-              onPress={() => setActiveFilter(f)}>
+              onPress={() => {
+                if (activeFilter !== f) {
+                  Haptics.selectionAsync();
+                  setActiveFilter(f);
+                }
+              }}>
               <Text style={[styles.filterPillText, activeFilter === f && { color: '#FFFFFF' }]}>
                 {f}
               </Text>
@@ -319,29 +538,40 @@ export default function ApplicationsScreen() {
             <Text style={styles.emptySub}>Tap + to track your first internship application</Text>
           </View>
         ) : (
-          filtered.map((app, index) => (
-            <Swipeable key={index} renderRightActions={() => renderRightActions(index)}>
-              <TouchableOpacity style={styles.card} onPress={() => handleOpenEdit(app, index)}>
+          filtered.map(({ app, origIdx }, i) => {
+            const anim = cardAnims.current[origIdx] ?? new Animated.Value(1);
+            return (
+            <Animated.View
+              key={origIdx}
+              style={{
+                opacity: anim,
+                transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+              }}>
+              <Swipeable
+                ref={ref => { swipeableRefs.current[i] = ref; }}
+                renderRightActions={() => renderRightActions(origIdx)}
+                onSwipeableWillOpen={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
+              <TouchableOpacity style={styles.card} onPress={() => handleOpenEdit(app, origIdx)}>
                 <View style={styles.cardInner}>
                   <View style={styles.cardLeft}>
                     <Text style={styles.company}>{app.company}</Text>
                     <Text style={styles.role}>{app.role}</Text>
                     {app.dateApplied ? <Text style={styles.date}>{app.dateApplied}</Text> : null}
+                    {app.followUpDate ? <Text style={styles.followUpDate}>🔔 Follow up: {app.followUpDate}</Text> : null}
                     <View style={{ alignSelf: 'flex-start' }}>
-                      <View style={[styles.statusBadge, { backgroundColor: statusColors[app.status] + '22' }]}>
-                        <Text style={[styles.statusText, { color: statusColors[app.status] }]}>
-                          {app.status}
+                      <View style={[styles.statusBadge, { backgroundColor: (statusColors[app.status] ?? '#64748B') + '22' }]}>
+                        <Text style={[styles.statusText, { color: statusColors[app.status] ?? '#64748B' }]}>
+                          {app.status === 'Not Yet Open' ? 'Applied' : app.status}
                         </Text>
                       </View>
                     </View>
                   </View>
-                  <View style={styles.swipeHint}>
-                    <Text style={styles.swipeArrow}>←</Text>
-                  </View>
+
                 </View>
               </TouchableOpacity>
             </Swipeable>
-          ))
+            </Animated.View>
+          );})
         )}
       </ScrollView>
 
@@ -406,6 +636,35 @@ export default function ApplicationsScreen() {
                 themeVariant="light"
               />
               <TouchableOpacity style={styles.dateConfirmButton} onPress={() => setDatePickerVisible(false)}>
+                <Text style={styles.dateConfirmText}>✓ Confirm Date</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <Text style={styles.inputLabel}>Follow-Up Date</Text>
+          <TouchableOpacity style={styles.dateInput} onPress={() => setFollowUpPickerVisible(true)}>
+            <Text style={followUpDate ? styles.dateText : styles.datePlaceholder}>
+              {followUpDate || 'Set a follow-up reminder (optional)'}
+            </Text>
+          </TouchableOpacity>
+          {followUpDate ? (
+            <TouchableOpacity onPress={() => setFollowUpDate('')} style={{ marginTop: -12, marginBottom: 12 }}>
+              <Text style={{ color: '#EF4444', fontSize: 13 }}>✕ Clear follow-up date</Text>
+            </TouchableOpacity>
+          ) : null}
+          {followUpPickerVisible && (
+            <View style={styles.datePickerContainer}>
+              <DateTimePicker
+                value={followUpSelectedDate}
+                mode="date"
+                display="inline"
+                locale="en-US"
+                onChange={handleFollowUpDateChange}
+                textColor="#0F172A"
+                accentColor="#0EA5E9"
+                themeVariant="light"
+              />
+              <TouchableOpacity style={styles.dateConfirmButton} onPress={() => setFollowUpPickerVisible(false)}>
                 <Text style={styles.dateConfirmText}>✓ Confirm Date</Text>
               </TouchableOpacity>
             </View>
@@ -482,6 +741,35 @@ export default function ApplicationsScreen() {
             </View>
           )}
 
+          <Text style={styles.inputLabel}>Follow-Up Date</Text>
+          <TouchableOpacity style={styles.dateInput} onPress={() => setEditFollowUpPickerVisible(true)}>
+            <Text style={editFollowUpDate ? styles.dateText : styles.datePlaceholder}>
+              {editFollowUpDate || 'Set a follow-up reminder (optional)'}
+            </Text>
+          </TouchableOpacity>
+          {editFollowUpDate ? (
+            <TouchableOpacity onPress={() => setEditFollowUpDate('')} style={{ marginTop: -12, marginBottom: 12 }}>
+              <Text style={{ color: '#EF4444', fontSize: 13 }}>✕ Clear follow-up date</Text>
+            </TouchableOpacity>
+          ) : null}
+          {editFollowUpPickerVisible && (
+            <View style={styles.datePickerContainer}>
+              <DateTimePicker
+                value={editFollowUpSelectedDate}
+                mode="date"
+                display="inline"
+                locale="en-US"
+                onChange={handleEditFollowUpDateChange}
+                textColor="#0F172A"
+                accentColor="#0EA5E9"
+                themeVariant="light"
+              />
+              <TouchableOpacity style={styles.dateConfirmButton} onPress={() => setEditFollowUpPickerVisible(false)}>
+                <Text style={styles.dateConfirmText}>✓ Confirm Date</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <Text style={styles.inputLabel}>Status</Text>
           <View style={styles.statusList}>
             {statuses.map((s) => (
@@ -517,59 +805,81 @@ export default function ApplicationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  filterRow: { marginTop: 14 },
-  filterContent: { gap: 8, paddingBottom: 2 },
-  filterPill: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14, backgroundColor: 'rgba(255,255,255,0.1)' },
-  filterPillText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
+  // ── Screen shell ──
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  headerContainer: { backgroundColor: '#0F172A', paddingTop: 60, paddingBottom: 14, paddingHorizontal: 20 },
-  appName: { fontSize: 13, color: '#0EA5E9', fontWeight: 'bold', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
-  header: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
-  scrollView: { flex: 1, padding: 16 },
+  headerContainer: { backgroundColor: '#0F172A', paddingTop: 60, paddingBottom: SP[3], paddingHorizontal: SP[6] },
+  appName: { ...Type.appBrand },
+  header: { ...Type.screenTitle },
+  scrollView: { flex: 1, padding: SP[4] },
+
+  // ── Search ──
+  searchInput: { backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, paddingVertical: 9, paddingHorizontal: SP[3], marginTop: SP[3], color: '#FFFFFF', fontSize: 15 },
+
+  // ── Filter pills ──
+  filterRow: { marginTop: SP[2] },
+  filterContent: { gap: SP[2], paddingBottom: 2 },
+  filterPill: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingVertical: 6, paddingHorizontal: SP[3], backgroundColor: 'rgba(255,255,255,0.1)' },
+  filterPillText: { ...Type.caption, color: '#FFFFFF' },
+
+  // ── Empty state ──
   emptyContainer: { alignItems: 'center', marginTop: 80 },
-  empty: { color: '#0F172A', fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
-  emptySub: { color: '#64748B', fontSize: 14, textAlign: 'center' },
-  card: { backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0' },
-  cardInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  empty: { ...Type.cardTitle, fontSize: 18, marginBottom: SP[2] },
+  emptySub: { ...Type.cardSubtitle, textAlign: 'center', marginBottom: 0 },
+
+  // ── Cards ──
+  card: { backgroundColor: '#FFFFFF', padding: SP[4], borderRadius: 12, marginBottom: SP[2] + 2, borderWidth: 1, borderColor: '#E2E8F0' },
+  cardInner: { flexDirection: 'row', alignItems: 'center' },
   cardLeft: { flex: 1 },
-  company: { fontSize: 17, fontWeight: 'bold', color: '#0F172A', flex: 1 },
-  role: { fontSize: 14, color: '#64748B', marginBottom: 6 },
-  date: { fontSize: 12, color: '#94A3B8', marginBottom: 4 },
-  statusBadge: { borderRadius: 20, paddingVertical: 3, paddingHorizontal: 10 },
-  statusText: { fontSize: 11, fontWeight: 'bold' },
-  swipeHint: { marginLeft: 12, opacity: 0.3, alignItems: 'center' },
-  swipeArrow: { fontSize: 16, color: '#94A3B8' },
-  deleteButton: { backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: 12, marginBottom: 10 },
+  company: { ...Type.cardTitle, flex: 1 },
+  role: { ...Type.cardSubtitle },
+  date: { ...Type.cardMeta },
+  followUpDate: { fontSize: 12, color: '#F59E0B', marginBottom: SP[1] },
+  statusBadge: { borderRadius: 20, paddingVertical: 3, paddingHorizontal: SP[2] + 2 },
+  statusText: { ...Type.caption },
+  // ── Swipe-to-delete ──
+  deleteButton: { backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', width: 80, borderRadius: 12, marginBottom: SP[2] + 2 },
   deleteText: { fontSize: 22 },
-  deleteLabel: { fontSize: 11, color: '#EF4444', fontWeight: 'bold' },
-  fab: { position: 'absolute', bottom: 24, right: 24, width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
+  deleteLabel: { fontSize: 11, color: '#EF4444', fontWeight: '700' },
+
+  // ── FAB ──
+  fab: { position: 'absolute', bottom: SP[6], right: SP[6], width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
   fabText: { color: 'white', fontSize: 32, fontWeight: '300', lineHeight: 36 },
-  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 12, paddingHorizontal: 20 },
-  modalHeader: { fontSize: 26, fontWeight: 'bold', color: '#0F172A' },
-  modalHandle: { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 16 },
-  modalTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  modalTitleActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+
+  // ── Modal shell ──
+  modalContainer: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: SP[3], paddingHorizontal: SP[6] },
+  modalHandle: { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginTop: SP[2], marginBottom: SP[4] },
+  modalHeader: { ...Type.modalTitle },
+  modalTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SP[6] },
+  modalTitleActions: { flexDirection: 'row', alignItems: 'center', gap: SP[2] },
   closeButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   closeButtonText: { fontSize: 14, color: '#64748B', fontWeight: '600' },
-  scanButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BAE6FD', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12 },
+
+  // ── Scan button ──
+  scanButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BAE6FD', borderRadius: 20, paddingVertical: 6, paddingHorizontal: SP[3] },
   scanButtonText: { fontSize: 13, color: '#0EA5E9', fontWeight: '600' },
-  scanningBanner: { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 12, marginBottom: 16, alignItems: 'center' },
+  scanningBanner: { backgroundColor: '#EFF6FF', borderRadius: 10, padding: SP[3], marginBottom: SP[4], alignItems: 'center' },
   scanningText: { color: '#0EA5E9', fontSize: 14, fontWeight: '600' },
-  inputLabel: { fontSize: 13, fontWeight: 'bold', color: '#64748B', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
-  input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18, fontSize: 16, color: '#0F172A' },
-  dateInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18 },
-  dateText: { fontSize: 16, color: '#0F172A' },
+
+  // ── Form fields ──
+  inputLabel: { ...Type.label },
+  input: { ...Type.body, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: SP[3] + 2, marginBottom: 18 },
+  dateInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: SP[3] + 2, marginBottom: 18 },
+  dateText: { ...Type.body },
   datePlaceholder: { fontSize: 16, color: '#64748B' },
   datePickerContainer: { backgroundColor: '#FFFFFF', borderRadius: 10, marginBottom: 18, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0' },
-  dateConfirmButton: { backgroundColor: '#0EA5E9', padding: 12, alignItems: 'center' },
-  dateConfirmText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  statusList: { marginBottom: 20 },
-  statusOption: { padding: 14, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dateConfirmButton: { backgroundColor: '#0EA5E9', padding: SP[3], alignItems: 'center' },
+  dateConfirmText: { ...Type.buttonLabel },
+
+  // ── Status picker ──
+  statusList: { marginBottom: SP[4] + 4 },
+  statusOption: { padding: SP[3] + 2, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, marginBottom: SP[2], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF' },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: SP[2] + 2 },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusOptionText: { fontSize: 15, color: '#64748B' },
-  saveButton: { backgroundColor: '#0EA5E9', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  saveButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  cancelButton: { alignItems: 'center', marginTop: 12 },
-  cancelText: { color: '#64748B', fontSize: 16 },
+
+  // ── Action buttons ──
+  saveButton: { backgroundColor: '#0EA5E9', padding: SP[4], borderRadius: 12, alignItems: 'center', marginTop: SP[2] + 2 },
+  saveButtonText: { ...Type.buttonLabel },
+  cancelButton: { alignItems: 'center', marginTop: SP[3] },
+  cancelText: { ...Type.link },
 });

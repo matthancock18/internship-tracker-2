@@ -1,21 +1,21 @@
 {
   "expo": {
-    "name": "MyFirstApp",
-    "slug": "MyFirstApp",
+    "name": "Trax",
+    "slug": "trax",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myfirstapp",
+    "scheme": "trax",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
-      "deploymentTarget": "15.5",
+      "deploymentTarget": "16.0",
       "infoPlist": {
-        "NSCameraUsageDescription": "App Trax needs camera access to scan documents for applications.",
-        "NSPhotoLibraryUsageDescription": "App Trax needs photo library access to scan documents for applications."
+        "NSCameraUsageDescription": "Trax needs camera access to scan documents for applications.",
+        "NSPhotoLibraryUsageDescription": "Trax needs photo library access to scan documents for applications."
       },
-      "bundleIdentifier": "com.anonymous.MyFirstApp"
+      "bundleIdentifier": "com.matthewhancock.trax"
     },
     "android": {
       "adaptiveIcon": {
@@ -29,7 +29,7 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.MyFirstApp"
+      "package": "com.matthewhancock.trax"
     },
     "web": {
       "output": "static",
