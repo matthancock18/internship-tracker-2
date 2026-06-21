@@ -4,13 +4,15 @@ import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Animated, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import { SP, SPRING_CONFIG, TIMING_CONFIG, Type } from '../../constants/designSystem';
 import { ApplicationsContext } from './_layout';
 
 export default function ApplicationsScreen() {
-  const { applications, setApplications, scannedImageUri, setScannedImageUri, setScanSource } = useContext(ApplicationsContext);
+  const insets = useSafeAreaInsets();
+  const { applications, setApplications, scannedImageUri, setScannedImageUri, setScanSource, scansLeft, isPro } = useContext(ApplicationsContext);
   const [modalVisible, setModalVisible] = useState(false);
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
@@ -19,7 +21,7 @@ export default function ApplicationsScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [status, setStatus] = useState<string>('Applied');
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editIndex, setEditIndex] = useState(null);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editCompany, setEditCompany] = useState('');
   const [editRole, setEditRole] = useState('');
   const [editDateApplied, setEditDateApplied] = useState('');
@@ -424,6 +426,7 @@ export default function ApplicationsScreen() {
   };
 
   const handleSaveEdit = async () => {
+    if (editIndex === null) return;
     if (!editCompany || !editRole) {
       Alert.alert('Missing Info', 'Please enter at least a company and role.');
       return;
@@ -479,7 +482,7 @@ export default function ApplicationsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + SP[2] }]}>
         <Text style={styles.appName}>Trax</Text>
         <Text style={styles.header}>Applications</Text>
         <TextInput
@@ -575,7 +578,7 @@ export default function ApplicationsScreen() {
         )}
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + SP[4] }]} onPress={() => setModalVisible(true)}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
@@ -596,7 +599,9 @@ export default function ApplicationsScreen() {
                 disabled={scanning}>
                 {scanning
                   ? <ActivityIndicator size="small" color="#0EA5E9" />
-                  : <Text style={styles.scanButtonText}>📷 Scan</Text>
+                  : <Text style={styles.scanButtonText}>
+                      📷 Scan{!isPro && scansLeft <= 5 ? ` (${scansLeft} left)` : ''}
+                    </Text>
                 }
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
@@ -807,7 +812,7 @@ export default function ApplicationsScreen() {
 const styles = StyleSheet.create({
   // ── Screen shell ──
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  headerContainer: { backgroundColor: '#0F172A', paddingTop: 60, paddingBottom: SP[3], paddingHorizontal: SP[6] },
+  headerContainer: { backgroundColor: '#0F172A', paddingBottom: SP[3], paddingHorizontal: SP[6] },
   appName: { ...Type.appBrand },
   header: { ...Type.screenTitle },
   scrollView: { flex: 1, padding: SP[4] },
@@ -842,7 +847,7 @@ const styles = StyleSheet.create({
   deleteLabel: { fontSize: 11, color: '#EF4444', fontWeight: '700' },
 
   // ── FAB ──
-  fab: { position: 'absolute', bottom: SP[6], right: SP[6], width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
+  fab: { position: 'absolute', right: SP[6], width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
   fabText: { color: 'white', fontSize: 32, fontWeight: '300', lineHeight: 36 },
 
   // ── Modal shell ──

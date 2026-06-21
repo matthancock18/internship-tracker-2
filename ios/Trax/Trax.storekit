@@ -1,0 +1,115 @@
+{
+  "identifier" : "6985AECD",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "12.00",
+      "familySharable" : false,
+      "groupLevel" : 1,
+      "internalID" : "6985AECD-0001",
+      "localizations" : [
+        {
+          "description" : "Unlimited OCR document scans forever.",
+          "displayName" : "Trax Pro Lifetime",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.matthewhancock.trax.pro_lifetime",
+      "referenceName" : "Trax Pro Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "TRAX",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "B0F2E8A1-1234-5678-ABCD-000000000001",
+      "localizations" : [
+        {
+          "displayName" : "Trax Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Trax Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "2.99",
+          "familySharable" : false,
+          "groupLevel" : 1,
+          "internalID" : "6985AECD-0002",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Full access to Trax Pro, billed monthly.",
+              "displayName" : "Trax Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.matthewhancock.trax.pro_monthly",
+          "referenceName" : "Trax Pro Monthly",
+          "subscriptionGroupID" : "B0F2E8A1-1234-5678-ABCD-000000000001",
+          "type" : "AutoRenewable"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "14.99",
+          "familySharable" : false,
+          "groupLevel" : 2,
+          "internalID" : "6985AECD-0003",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Full access to Trax Pro, billed yearly.",
+              "displayName" : "Trax Pro Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.matthewhancock.trax.pro_yearly",
+          "referenceName" : "Trax Pro Yearly",
+          "subscriptionGroupID" : "B0F2E8A1-1234-5678-ABCD-000000000001",
+          "type" : "AutoRenewable"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

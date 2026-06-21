@@ -1,14 +1,18 @@
+import TextRecognition from '@react-native-ml-kit/text-recognition';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
-import { useContext, useState } from 'react';
-import { Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useContext, useEffect, useState } from 'react';
+import { ActionSheetIOS, ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { SP, Type } from '../../constants/designSystem';
 import { ApplicationsContext } from './_layout';
 
 export default function EmailsScreen() {
-  const { emails, setEmails } = useContext(ApplicationsContext);
+  const insets = useSafeAreaInsets();
+  const { emails, setEmails, scannedEmailImageUri, setScannedEmailImageUri, setEmailScanSource, scansLeft, isPro } = useContext(ApplicationsContext);
+  const [scanning, setScanning] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [company, setCompany] = useState('');
   const [contactName, setContactName] = useState('');
@@ -22,7 +26,7 @@ export default function EmailsScreen() {
   const [selectedDateSent, setSelectedDateSent] = useState(new Date());
   const [selectedFollowUp, setSelectedFollowUp] = useState(new Date());
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editIndex, setEditIndex] = useState(null);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editCompany, setEditCompany] = useState('');
   const [editContactName, setEditContactName] = useState('');
   const [editDateSent, setEditDateSent] = useState('');
@@ -35,8 +39,127 @@ export default function EmailsScreen() {
   const [editDateSentPickerVisible, setEditDateSentPickerVisible] = useState(false);
   const [editFollowUpPickerVisible, setEditFollowUpPickerVisible] = useState(false);
 
-  const formatDate = (date) => {
+  const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // ── Gmail-aware OCR Parser ──
+  const parseEmailOCR = (text: string): { company: string; contactName: string; dateSent: string } => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    let company = '';
+    let contactName = '';
+    let dateSent = '';
+
+    // 1. Extract sender from "From: Name <email@domain.com>" or "Name <email>"
+    const fromLine = lines.find(l => /^from:/i.test(l));
+    if (fromLine) {
+      // Name before angle bracket
+      const nameMatch = fromLine.match(/from:\s*([^<\n]+?)(?:\s*<|$)/i);
+      if (nameMatch) contactName = nameMatch[1].trim().replace(/^"(.*)"$/, '$1');
+      // Company from email domain
+      const emailMatch = fromLine.match(/<([^>]+)>/);
+      if (emailMatch) {
+        const domain = emailMatch[1].split('@')[1] || '';
+        const domainPart = domain.split('.')[0];
+        if (domainPart && !['gmail', 'yahoo', 'hotmail', 'outlook', 'icloud', 'me'].includes(domainPart)) {
+          company = domainPart.charAt(0).toUpperCase() + domainPart.slice(1);
+        }
+      }
+    }
+
+    // 2. If no From line, look for "Name via LinkedIn" or recruiter signatures
+    if (!contactName) {
+      const viaLine = lines.find(l => /via linkedin/i.test(l));
+      if (viaLine) contactName = viaLine.replace(/via linkedin.*/i, '').trim();
+    }
+
+    // 3. Extract company from subject: "Opportunity at Acme" / "re: Acme Inc" / "from Acme"
+    const subjectLine = lines.find(l => /^subject:/i.test(l)) || '';
+    if (!company) {
+      const atMatch = subjectLine.match(/(?:at|@|from|with)\s+([A-Z][A-Za-z0-9\s&.,'-]{1,40})/);
+      if (atMatch) company = atMatch[1].trim().replace(/[,.]$/, '');
+    }
+
+    // 4. Fallback: any capitalised word after "Hi,\n" greeting → likely sender
+    if (!contactName) {
+      const hiIdx = lines.findIndex(l => /^hi\b/i.test(l));
+      if (hiIdx !== -1 && lines[hiIdx + 1]) {
+        const candidate = lines[hiIdx + 1].replace(/[^A-Za-z\s]/g, '').trim();
+        if (candidate.split(' ').length <= 3) contactName = candidate;
+      }
+    }
+
+    // 5. Date — Gmail shows "Mon, Jun 16, 2025" or "Jun 16, 2025 at 3:42 PM"
+    const datePatterns = [
+      /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}/i,
+      /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}/i,
+    ];
+    for (const line of lines) {
+      for (const pat of datePatterns) {
+        const m = line.match(pat);
+        if (m) {
+          try {
+            const parsed = new Date(m[0].replace(/^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+/i, ''));
+            if (!isNaN(parsed.getTime())) { dateSent = formatDate(parsed); break; }
+          } catch {}
+        }
+      }
+      if (dateSent) break;
+    }
+
+    return { company, contactName, dateSent };
+  };
+
+  // Watch for scanned email image
+  useEffect(() => {
+    if (!scannedEmailImageUri) return;
+    setScannedEmailImageUri(null);
+    setTimeout(() => processEmailImage(scannedEmailImageUri), 400);
+  }, [scannedEmailImageUri]);
+
+  const processEmailImage = async (uri: string) => {
+    setScanning(true);
+    try {
+      const result = await TextRecognition.recognize(uri);
+      const text = result.text;
+      if (!text || text.trim().length === 0) {
+        Alert.alert('No text found', 'Could not detect any text in this image. Try a clearer photo.');
+        setScanning(false);
+        return;
+      }
+      const { company: c, contactName: cn, dateSent: ds } = parseEmailOCR(text);
+      if (c) setCompany(c);
+      if (cn) setContactName(cn);
+      if (ds) {
+        setDateSent(ds);
+        try { setSelectedDateSent(new Date(ds)); } catch {}
+      }
+      if (!c && !cn) {
+        Alert.alert('Could not parse', "Text detected but couldn't identify sender or company. Fill in manually.");
+      }
+    } catch (e) {
+      Alert.alert('Scan error', String(e));
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleScan = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Cancel', 'Take Photo', 'Choose from Library'], cancelButtonIndex: 0 },
+        (buttonIndex) => {
+          if (buttonIndex === 1) { setModalVisible(false); setTimeout(() => setEmailScanSource('camera'), 300); }
+          if (buttonIndex === 2) { setModalVisible(false); setTimeout(() => setEmailScanSource('library'), 300); }
+        }
+      );
+    } else {
+      Alert.alert('Scan Email', 'Choose an option', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Take Photo', onPress: () => { setModalVisible(false); setTimeout(() => setEmailScanSource('camera'), 300); } },
+        { text: 'Choose from Library', onPress: () => { setModalVisible(false); setTimeout(() => setEmailScanSource('library'), 300); } },
+      ]);
+    }
   };
 
   const handleDateSentChange = (event, date) => {
@@ -111,6 +234,7 @@ export default function EmailsScreen() {
   };
 
   const handleSaveEdit = () => {
+    if (editIndex === null) return;
     if (!editCompany) {
       Alert.alert('Missing Info', 'Please enter at least a company name.');
       return;
@@ -160,7 +284,7 @@ export default function EmailsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + SP[2] }]}>
         <Text style={styles.appName}>Trax</Text>
         <Text style={styles.header}>Emails</Text>
       </View>
@@ -213,7 +337,7 @@ export default function EmailsScreen() {
         )}
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + SP[4] }]} onPress={() => setModalVisible(true)}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
@@ -222,10 +346,24 @@ export default function EmailsScreen() {
   <View style={styles.modalHandle} />
   <View style={styles.modalTitleRow}>
     <Text style={styles.modalHeader}>Log an Email</Text>
-    <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
-      <Text style={styles.closeButtonText}>✕</Text>
-    </TouchableOpacity>
+    <View style={styles.modalTitleActions}>
+      <TouchableOpacity style={styles.scanButton} onPress={handleScan} disabled={scanning}>
+        {scanning
+          ? <ActivityIndicator size="small" color="#0EA5E9" />
+          : <Text style={styles.scanButtonText}>📷 Scan{!isPro && scansLeft <= 5 ? ` (${scansLeft} left)` : ''}</Text>
+        }
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
+        <Text style={styles.closeButtonText}>✕</Text>
+      </TouchableOpacity>
+    </View>
   </View>
+
+          {scanning && (
+            <View style={styles.scanningBanner}>
+              <Text style={styles.scanningText}>Scanning email...</Text>
+            </View>
+          )}
 
           <Text style={styles.inputLabel}>Company</Text>
           <TextInput style={styles.input} placeholder="e.g. Google" placeholderTextColor="#64748B" value={company} onChangeText={setCompany} />
@@ -377,7 +515,7 @@ export default function EmailsScreen() {
 const styles = StyleSheet.create({
   // ── Screen shell ──
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  headerContainer: { backgroundColor: '#0F172A', paddingTop: 60, paddingBottom: SP[4], paddingHorizontal: SP[6] },
+  headerContainer: { backgroundColor: '#0F172A', paddingBottom: SP[4], paddingHorizontal: SP[6] },
   appName: { ...Type.appBrand },
   header: { ...Type.screenTitle },
   scrollView: { flex: 1, padding: SP[4] },
@@ -409,7 +547,7 @@ const styles = StyleSheet.create({
   deleteLabel: { fontSize: 11, color: '#EF4444', fontWeight: '700' },
 
   // ── FAB ──
-  fab: { position: 'absolute', bottom: SP[6], right: SP[6], width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
+  fab: { position: 'absolute', right: SP[6], width: 58, height: 58, borderRadius: 29, backgroundColor: '#0EA5E9', alignItems: 'center', justifyContent: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
   fabText: { color: 'white', fontSize: 32, fontWeight: '300', lineHeight: 36 },
 
   // ── Modal shell ──
@@ -439,6 +577,13 @@ const styles = StyleSheet.create({
   toggleActive: { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
   toggleText: { color: '#64748B', fontSize: 14 },
   toggleTextActive: { color: 'white', fontWeight: '700' },
+
+  // ── Scan ──
+  modalTitleActions: { flexDirection: 'row', alignItems: 'center', gap: SP[2] },
+  scanButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BAE6FD', borderRadius: 20, paddingVertical: 6, paddingHorizontal: SP[3] },
+  scanButtonText: { fontSize: 13, color: '#0EA5E9', fontWeight: '600' },
+  scanningBanner: { backgroundColor: '#EFF6FF', borderRadius: 10, padding: SP[3], marginBottom: SP[4], alignItems: 'center' },
+  scanningText: { color: '#0EA5E9', fontSize: 14, fontWeight: '600' },
 
   // ── Action buttons ──
   saveButton: { backgroundColor: '#0EA5E9', padding: SP[4], borderRadius: 12, alignItems: 'center', marginTop: SP[2] + 2 },
