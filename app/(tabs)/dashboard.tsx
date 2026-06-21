@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SP, Type } from '../../constants/designSystem';
 import { ApplicationsContext } from './_layout';
 
@@ -70,6 +71,7 @@ const wheelStyles = StyleSheet.create({
 });
 
 export default function DashboardScreen() {
+  const insets = useSafeAreaInsets();
   const { applications, emails, goal, handleSaveGoal } = useContext(ApplicationsContext);
 
   const [editGoalVisible, setEditGoalVisible] = useState(false);
@@ -151,7 +153,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + SP[2] }]}>
         <Text style={styles.appName}>Trax</Text>
         <Text style={styles.header}>Dashboard</Text>
       </View>
@@ -351,7 +353,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   // ── Screen shell ──
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  headerContainer: { backgroundColor: '#0F172A', paddingTop: 60, paddingBottom: SP[4], paddingHorizontal: SP[6] },
+  headerContainer: { backgroundColor: '#0F172A', paddingBottom: SP[4], paddingHorizontal: SP[6] },
   appName: { ...Type.appBrand },
   header: { ...Type.screenTitle },
   scrollView: { flex: 1, padding: SP[4] },

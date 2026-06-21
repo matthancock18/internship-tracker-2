@@ -39,5 +39,5 @@ yarn-error.*
 app-example
 
 # generated native folders
-/ios
+# /ios — tracked so Podfile patches and build fixes are preserved
 /android
