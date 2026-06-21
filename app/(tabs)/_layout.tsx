@@ -355,13 +355,14 @@ function TabLayoutInner() {
 
   const handleCompleteOnboarding = async () => {
     const target = parseInt(onboardingTarget, 10);
-    if (!target || target <= 0 || !onboardingRate) {
-      Alert.alert('Missing Info', 'Please enter a target and select a pace.');
+    const rate = onboardingRate ?? 1; // default to 1 if user hasn't scrolled the picker
+    if (!target || target <= 0) {
+      Alert.alert('Missing Info', 'Please enter how many applications you want to send.');
       return;
     }
     try {
-      const ratePerDay = onboardingRateUnit === 'day' ? onboardingRate : onboardingRate / 7;
-      const newGoal = buildGoalFromRate(target, ratePerDay, onboardingRateUnit, onboardingRate);
+      const ratePerDay = onboardingRateUnit === 'day' ? rate : rate / 7;
+      const newGoal = buildGoalFromRate(target, ratePerDay, onboardingRateUnit, rate);
       await AsyncStorage.setItem('goal', JSON.stringify(newGoal));
       await AsyncStorage.setItem('hasCompletedOnboarding', 'true');
       setGoal(newGoal);
@@ -393,10 +394,9 @@ function TabLayoutInner() {
 
   if (!hasCompletedOnboarding) {
     const target = parseInt(onboardingTarget, 10);
-    const ratePerDay = onboardingRate
-      ? (onboardingRateUnit === 'day' ? onboardingRate : onboardingRate / 7)
-      : null;
-    const daysToFinish = target > 0 && ratePerDay ? Math.ceil(target / ratePerDay) : null;
+    const rate = onboardingRate ?? 1;
+    const ratePerDay = onboardingRateUnit === 'day' ? rate : rate / 7;
+    const daysToFinish = target > 0 ? Math.ceil(target / ratePerDay) : null;
     const finishDate = daysToFinish
       ? new Date(Date.now() + daysToFinish * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       : null;

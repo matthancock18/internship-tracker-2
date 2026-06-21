@@ -2,10 +2,10 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
-import { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Animated, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Swipeable } from 'react-native-gesture-handler';
+import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import { SP, SPRING_CONFIG, TIMING_CONFIG, Type } from '../../constants/designSystem';
 import { ApplicationsContext } from './_layout';
@@ -31,7 +31,7 @@ export default function ApplicationsScreen() {
   const [activeFilter, setActiveFilter] = useState('All');
   const [searchText, setSearchText] = useState('');
   const [scanning, setScanning] = useState(false);
-  const swipeableRefs = useRef<(Swipeable | null)[]>([]);
+  const swipeableRefs = useRef<React.RefObject<SwipeableMethods | null>[]>([]);
 
   // ── Card animations — parallel array to `applications` ──
   const cardAnims = useRef<Animated.Value[]>([]);
@@ -393,7 +393,7 @@ export default function ApplicationsScreen() {
 
   const handleDelete = (index: number) => {
     Alert.alert('Delete Application', 'Are you sure you want to delete this application?', [
-      { text: 'Cancel', style: 'cancel', onPress: () => swipeableRefs.current.forEach(ref => ref?.close()) },
+      { text: 'Cancel', style: 'cancel', onPress: () => swipeableRefs.current.forEach(ref => ref?.current?.close()) },
       { text: 'Delete', style: 'destructive', onPress: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           setEditModalVisible(false);
@@ -551,7 +551,7 @@ export default function ApplicationsScreen() {
                 transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
               }}>
               <Swipeable
-                ref={ref => { swipeableRefs.current[i] = ref; }}
+                ref={(() => { if (!swipeableRefs.current[i]) swipeableRefs.current[i] = React.createRef(); return swipeableRefs.current[i]; })()}
                 renderRightActions={() => renderRightActions(origIdx)}
                 onSwipeableWillOpen={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
               <TouchableOpacity style={styles.card} onPress={() => handleOpenEdit(app, origIdx)}>

@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { useContext, useEffect, useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Swipeable } from 'react-native-gesture-handler';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { SP, Type } from '../../constants/designSystem';
 import { ApplicationsContext } from './_layout';
