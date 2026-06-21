@@ -478,6 +478,7 @@ function TabLayoutInner() {
       isPro,
       setIsPro,
       iap,
+      dataLoaded: hasCompletedOnboarding !== null,
       showPaywall: () => setPaywallVisible(true),
     }}>
       {/* Paywall modal */}

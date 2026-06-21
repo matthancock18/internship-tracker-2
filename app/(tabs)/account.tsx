@@ -8,7 +8,7 @@ import { ApplicationsContext, FREE_SCAN_LIMIT } from './_layout';
 
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
-  const { scansUsed, scansLeft, isPro, setIsPro, iap } = useContext(ApplicationsContext);
+  const { scansUsed, scansLeft, isPro, setIsPro, iap, dataLoaded } = useContext(ApplicationsContext);
   const { purchase, restore, status, products, subscriptions } = iap;
 
   const usagePercent = Math.min(1, scansUsed / FREE_SCAN_LIMIT);
@@ -37,33 +37,36 @@ export default function AccountScreen() {
       {/* Plan / usage card */}
       <View style={styles.section}>
         <View style={styles.planCard}>
-          <View style={styles.planRow}>
-            <Text style={styles.planLabel}>{isPro ? 'Trax Pro' : 'Free Plan'}</Text>
-            {isPro && <View style={styles.proBadge}><Text style={styles.proBadgeText}>PRO</Text></View>}
-          </View>
-          {isPro ? (
-            <Text style={styles.planSub}>You have unlimited scans. Thanks for supporting Trax!</Text>
+          {!dataLoaded ? (
+            <ActivityIndicator color="#0EA5E9" style={{ marginVertical: SP[3] }} />
           ) : (
-            <Text style={styles.planSub}>
-              {scansLeft > 0
-                ? `${scansLeft} of ${FREE_SCAN_LIMIT} free scans remaining`
-                : "You've used all your free scans"}
-            </Text>
-          )}
-
-          {!isPro && (
             <>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, { width: `${usagePercent * 100}%` as any, backgroundColor: barColor }]} />
+              <View style={styles.planRow}>
+                <Text style={styles.planLabel}>{isPro ? 'Trax Pro' : 'Free Plan'}</Text>
+                {isPro && <View style={styles.proBadge}><Text style={styles.proBadgeText}>PRO</Text></View>}
               </View>
-              <Text style={styles.barLabel}>{scansUsed} / {FREE_SCAN_LIMIT} scans used</Text>
+              <Text style={styles.planSub}>
+                {isPro
+                  ? 'You have unlimited scans. Thanks for supporting Trax!'
+                  : scansLeft > 0
+                    ? `${scansLeft} of ${FREE_SCAN_LIMIT} free scans remaining`
+                    : "You've used all your free scans"}
+              </Text>
+              {!isPro && (
+                <>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${usagePercent * 100}%` as any, backgroundColor: barColor }]} />
+                  </View>
+                  <Text style={styles.barLabel}>{scansUsed} / {FREE_SCAN_LIMIT} scans used</Text>
+                </>
+              )}
             </>
           )}
         </View>
       </View>
 
       {/* Upgrade section */}
-      {!isPro && (
+      {dataLoaded && !isPro && (
         <View style={styles.section}>
           <View style={styles.upgradeCard}>
             <Text style={styles.upgradeEmoji}>⚡</Text>
@@ -144,7 +147,7 @@ export default function AccountScreen() {
       )}
 
       {/* Pro — manage subscription */}
-      {isPro && (
+      {dataLoaded && isPro && (
         <View style={styles.section}>
           <View style={styles.planCard}>
             <Text style={styles.sectionCardTitle}>Manage Subscription</Text>
