@@ -4,7 +4,6 @@ import * as Haptics from 'expo-haptics';
 import { useContext, useEffect, useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { SP, Type } from '../../constants/designSystem';
 import { ApplicationsContext } from './_layout';
@@ -257,13 +256,6 @@ export default function EmailsScreen() {
     if (Platform.OS === 'android') setEditFollowUpPickerVisible(false);
   };
 
-  const renderRightActions = (index) => (
-    <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(index)}>
-      <Text style={styles.deleteText}>🗑️</Text>
-      <Text style={styles.deleteLabel}>Delete</Text>
-    </TouchableOpacity>
-  );
-
   const YesNoToggle = ({ label, value, onChange }) => (
     <View style={styles.toggleRow}>
       <Text style={styles.toggleLabel}>{label}</Text>
@@ -313,26 +305,21 @@ export default function EmailsScreen() {
 </View>
         ) : (
           emails.map((email, index) => (
-            <Swipeable
-              key={index}
-              renderRightActions={() => renderRightActions(index)}
-              onSwipeableWillOpen={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
-              <TouchableOpacity style={styles.card} onPress={() => handleOpenEdit(email, index)}>
-                <Text style={styles.company}>{email.company}</Text>
-                {email.contactName ? <Text style={styles.contact}>To: {email.contactName}</Text> : null}
-                {email.dateSent ? <Text style={styles.detail}>📅 Sent: {email.dateSent}</Text> : null}
-                <View style={styles.tagRow}>
-                  <View style={[styles.tag, email.response === 'Yes' && styles.tagGreen]}>
-                    <Text style={[styles.tagText, email.response === 'Yes' && styles.tagTextGreen]}>Response: {email.response}</Text>
-                  </View>
-                  <View style={[styles.tag, email.coffeeChat === 'Yes' && styles.tagBlue]}>
-                    <Text style={[styles.tagText, email.coffeeChat === 'Yes' && styles.tagTextBlue]}>☕ Chat: {email.coffeeChat}</Text>
-                  </View>
+            <TouchableOpacity key={index} style={styles.card} onPress={() => handleOpenEdit(email, index)}>
+              <Text style={styles.company}>{email.company}</Text>
+              {email.contactName ? <Text style={styles.contact}>To: {email.contactName}</Text> : null}
+              {email.dateSent ? <Text style={styles.detail}>📅 Sent: {email.dateSent}</Text> : null}
+              <View style={styles.tagRow}>
+                <View style={[styles.tag, email.response === 'Yes' && styles.tagGreen]}>
+                  <Text style={[styles.tagText, email.response === 'Yes' && styles.tagTextGreen]}>Response: {email.response}</Text>
                 </View>
-                {email.followUpDate ? <Text style={styles.followUp}>🔔 Follow up: {email.followUpDate}</Text> : null}
-                {email.notes ? <Text style={styles.notes}>{email.notes}</Text> : null}
-              </TouchableOpacity>
-            </Swipeable>
+                <View style={[styles.tag, email.coffeeChat === 'Yes' && styles.tagBlue]}>
+                  <Text style={[styles.tagText, email.coffeeChat === 'Yes' && styles.tagTextBlue]}>☕ Chat: {email.coffeeChat}</Text>
+                </View>
+              </View>
+              {email.followUpDate ? <Text style={styles.followUp}>🔔 Follow up: {email.followUpDate}</Text> : null}
+              {email.notes ? <Text style={styles.notes}>{email.notes}</Text> : null}
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
