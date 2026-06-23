@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SP, Type } from '../../constants/designSystem';
 import { SKU } from '../../constants/iap';
@@ -174,16 +174,28 @@ export default function AccountScreen() {
         <View style={styles.aboutCard}>
           <Row label="App" value="Trax" />
           <Row label="Version" value="1.0.0" />
-          <Row label="Built for" value="Job seekers" last />
+          <Row label="Built for" value="Job seekers" />
+          <TouchableOpacity
+            style={[styles.row]}
+            onPress={() => Linking.openURL('https://yoursite.com/privacy')}>
+            <Text style={styles.rowLabel}>Privacy Policy</Text>
+            <Text style={[styles.rowValue, { color: '#0EA5E9' }]}>View →</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.row]}
+            onPress={() => Linking.openURL('https://yoursite.com/terms')}>
+            <Text style={styles.rowLabel}>Terms of Use</Text>
+            <Text style={[styles.rowValue, { color: '#0EA5E9' }]}>View →</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
   );
 }
 
-function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
+function Row({ label, value }: { label: string; value: string }) {
   return (
-    <View style={[styles.row, !last && styles.rowBorder]}>
+    <View style={[styles.row, styles.rowBorder]}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue}>{value}</Text>
     </View>
