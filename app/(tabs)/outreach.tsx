@@ -2,7 +2,7 @@ import TextRecognition from '@react-native-ml-kit/text-recognition';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { useContext, useEffect, useState } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { SP, Type } from '../../constants/designSystem';
@@ -303,7 +303,8 @@ export default function OutreachScreen() {
       </TouchableOpacity>
 
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
-        <ScrollView style={styles.modalContainer}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView style={styles.modalContainer} keyboardShouldPersistTaps="handled">
           <View style={styles.modalHandle} />
           <View style={styles.modalTitleRow}>
             <Text style={styles.modalHeader}>Log Outreach</Text>
@@ -368,10 +369,12 @@ export default function OutreachScreen() {
           </TouchableOpacity>
           <View style={{ height: 40 }} />
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={editModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setEditModalVisible(false)}>
-        <ScrollView style={styles.modalContainer}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView style={styles.modalContainer} keyboardShouldPersistTaps="handled">
           <View style={styles.modalHandle} />
           <View style={styles.modalTitleRow}>
             <Text style={styles.modalHeader}>Edit Outreach</Text>
@@ -429,6 +432,7 @@ export default function OutreachScreen() {
           </TouchableOpacity>
           <View style={{ height: 40 }} />
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

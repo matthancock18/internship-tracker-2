@@ -2,8 +2,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
+import * as StoreReview from 'expo-store-review';
 import { useContext, useEffect, useRef, useState } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, Animated, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import { SP, SPRING_CONFIG, TIMING_CONFIG, Type } from '../../constants/designSystem';
@@ -381,6 +382,7 @@ export default function ApplicationsScreen() {
     const entranceAnim = new Animated.Value(0);
     cardAnims.current.push(entranceAnim);
 
+    const newCount = applications.length + 1;
     setApplications([...applications, { company, role, dateApplied, status, followUpDate, notificationId }]);
     setCompany(''); setRole(''); setDateApplied(''); setFollowUpDate('');
     setSelectedDate(new Date()); setFollowUpSelectedDate(new Date()); setStatus('Applied');
@@ -388,6 +390,12 @@ export default function ApplicationsScreen() {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Animated.spring(entranceAnim, { toValue: 1, ...SPRING_CONFIG }).start();
+
+    if (newCount === 3) {
+      StoreReview.isAvailableAsync().then(available => {
+        if (available) setTimeout(() => StoreReview.requestReview(), 1500);
+      }).catch(() => {});
+    }
   };
 
   const handleDelete = (index: number) => {
@@ -575,7 +583,8 @@ export default function ApplicationsScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setModalVisible(false)}>
-        <ScrollView style={styles.modalContainer}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView style={styles.modalContainer} keyboardShouldPersistTaps="handled">
           <View style={styles.modalHandle} />
           <View style={styles.modalTitleRow}>
             <Text style={styles.modalHeader}>New Application</Text>
@@ -686,6 +695,7 @@ export default function ApplicationsScreen() {
           </TouchableOpacity>
           <View style={{ height: 40 }} />
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Edit Modal ── */}
@@ -694,8 +704,9 @@ export default function ApplicationsScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setEditModalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalHandle} />
-        <ScrollView style={styles.modalContainer}>
+        <ScrollView style={styles.modalContainer} keyboardShouldPersistTaps="handled">
           <View style={styles.modalTitleRow}>
             <Text style={styles.modalHeader}>Edit Application</Text>
             <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.closeButton}>
@@ -791,6 +802,7 @@ export default function ApplicationsScreen() {
           </TouchableOpacity>
           <View style={{ height: 40 }} />
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

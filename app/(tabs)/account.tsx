@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import React, { useContext } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -173,7 +174,7 @@ export default function AccountScreen() {
         <Text style={styles.sectionLabel}>About</Text>
         <View style={styles.aboutCard}>
           <Row label="App" value="Trax" />
-          <Row label="Version" value="1.0.0" />
+          <Row label="Version" value={Constants.expoConfig?.version ?? '1.0.0'} />
           <Row label="Built for" value="Job seekers" />
           <TouchableOpacity
             style={[styles.row]}
