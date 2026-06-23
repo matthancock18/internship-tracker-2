@@ -1,74 +1,10 @@
 import * as Haptics from 'expo-haptics';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SP, Type } from '../../constants/designSystem';
+import { RatePicker } from '../../components/RatePicker';
 import { ApplicationsContext } from './_layout';
-
-const WHEEL_ITEM_H = 44;
-const WHEEL_VISIBLE = 5;
-
-function RatePicker({ unit, value, onChange }: { unit: 'day' | 'week'; value: number | null; onChange: (n: number) => void }) {
-  const maxRate = unit === 'day' ? 30 : 60;
-  const numbers = Array.from({ length: maxRate }, (_, i) => i + 1);
-  const scrollRef = useRef<ScrollView>(null);
-  const pad = WHEEL_ITEM_H * Math.floor(WHEEL_VISIBLE / 2);
-  const label = unit === 'day' ? '/day' : '/wk';
-
-  const scrollTo = useCallback((val: number, animated: boolean) => {
-    scrollRef.current?.scrollTo({ y: (val - 1) * WHEEL_ITEM_H, animated });
-  }, []);
-
-  useEffect(() => {
-    const initial = value ?? 1;
-    setTimeout(() => scrollTo(initial, false), 50);
-  }, [unit]);
-
-  const snapToNearest = (e: any) => {
-    const y = e.nativeEvent.contentOffset.y;
-    const idx = Math.round(y / WHEEL_ITEM_H);
-    const picked = Math.min(maxRate, Math.max(1, idx + 1));
-    onChange(picked);
-    scrollTo(picked, true);
-  };
-
-  return (
-    <View style={wheelStyles.wrapper}>
-      <View style={wheelStyles.fadeTop} pointerEvents="none" />
-      <View style={wheelStyles.selectionLine} pointerEvents="none" />
-      <View style={wheelStyles.fadeBottom} pointerEvents="none" />
-      <ScrollView
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={WHEEL_ITEM_H}
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingVertical: pad }}
-        onMomentumScrollEnd={snapToNearest}
-        onScrollEndDrag={snapToNearest}
-        style={wheelStyles.scroll}>
-        {numbers.map(n => {
-          const selected = n === value;
-          return (
-            <TouchableOpacity key={n} style={wheelStyles.item} onPress={() => { onChange(n); scrollTo(n, true); }} activeOpacity={0.6}>
-              <Text style={[wheelStyles.itemText, selected && wheelStyles.itemTextSelected]}>{n} {label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-const wheelStyles = StyleSheet.create({
-  wrapper: { height: WHEEL_ITEM_H * WHEEL_VISIBLE, overflow: 'hidden', borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 20 },
-  scroll: { flex: 1 },
-  item: { height: WHEEL_ITEM_H, alignItems: 'center', justifyContent: 'center' },
-  itemText: { fontSize: 16, color: '#94A3B8', fontWeight: '500' },
-  itemTextSelected: { fontSize: 20, color: '#0EA5E9', fontWeight: 'bold' },
-  selectionLine: { position: 'absolute', top: WHEEL_ITEM_H * Math.floor(WHEEL_VISIBLE / 2), left: 16, right: 16, height: WHEEL_ITEM_H, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#0EA5E9', borderRadius: 8, opacity: 0.35 },
-  fadeTop: { position: 'absolute', top: 0, left: 0, right: 0, height: WHEEL_ITEM_H * Math.floor(WHEEL_VISIBLE / 2), zIndex: 1, backgroundColor: 'rgba(248,250,252,0.65)' },
-  fadeBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: WHEEL_ITEM_H * Math.floor(WHEEL_VISIBLE / 2), zIndex: 1, backgroundColor: 'rgba(248,250,252,0.65)' },
-});
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -84,6 +20,9 @@ export default function DashboardScreen() {
   const totalOffers = applications.filter(a => a.status === 'Offer').length;
   const totalRejected = applications.filter(a => a.status === 'Rejected').length;
   const totalEmails = emails.length;
+  const totalResponses = emails.filter(e => e.response === 'Yes').length;
+  const responseRate = totalEmails > 0 ? Math.round((totalResponses / totalEmails) * 100) : null;
+  const conversionRate = totalApplications > 0 ? Math.round((totalInterviews / totalApplications) * 100) : null;
   const totalFollowUpsPending = [
     ...applications.filter(a => a.followUpDate),
     ...emails.filter(e => e.followUpDate !== ''),
@@ -228,13 +167,33 @@ export default function DashboardScreen() {
           </View>
           <View style={styles.miniCard}>
             <Text style={styles.miniNumber}>{totalEmails}</Text>
-            <Text style={styles.miniLabel}>Emails sent</Text>
+            <Text style={styles.miniLabel}>Outreach sent</Text>
           </View>
           <View style={styles.miniCard}>
             <Text style={[styles.miniNumber, totalFollowUpsPending > 0 && { color: '#F59E0B' }]}>{totalFollowUpsPending}</Text>
             <Text style={styles.miniLabel}>Follow-ups</Text>
           </View>
         </View>
+
+        {(conversionRate !== null || responseRate !== null) && (
+          <>
+            <Text style={styles.sectionTitle}>Rates</Text>
+            <View style={styles.miniGrid}>
+              {conversionRate !== null && (
+                <View style={styles.miniCard}>
+                  <Text style={[styles.miniNumber, { color: '#0EA5E9' }]}>{conversionRate}%</Text>
+                  <Text style={styles.miniLabel}>Interview rate</Text>
+                </View>
+              )}
+              {responseRate !== null && (
+                <View style={styles.miniCard}>
+                  <Text style={[styles.miniNumber, { color: '#10B981' }]}>{responseRate}%</Text>
+                  <Text style={styles.miniLabel}>Email response rate</Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
 
         {totalApplications > 0 && (
           <>

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import {
   finishTransaction,
+  getAvailablePurchases,
   initConnection,
   endConnection,
   purchaseErrorListener,
@@ -47,10 +48,8 @@ export function useIAPPurchase(initialIsPro: boolean): IAPState {
     connected,
     products,
     subscriptions,
-    availablePurchases,
     fetchProducts,
     requestPurchase,
-    restorePurchases,
   } = useIAP();
 
   const setIsPro = useCallback((value: boolean) => {
@@ -115,24 +114,6 @@ export function useIAPPurchase(initialIsPro: boolean): IAPState {
     };
   }, []);
 
-  // After restorePurchases() resolves, availablePurchases is populated
-  useEffect(() => {
-    if (status !== 'restoring') return;
-    if (availablePurchases.length === 0) return;
-
-    const hasActivePro = availablePurchases.some(p =>
-      Object.values(SKU).includes(p.productId as typeof SKU[keyof typeof SKU])
-    );
-
-    if (hasActivePro) {
-      setIsPro(true);
-      Alert.alert('Restored', 'Your Trax Pro subscription has been restored.');
-    } else {
-      Alert.alert('Nothing to Restore', 'No previous Trax Pro purchase found on this Apple ID.');
-    }
-    setStatus('idle');
-  }, [availablePurchases, status]);
-
   const purchase = useCallback(async (sku: string) => {
     setStatus('purchasing');
     try {
@@ -164,12 +145,22 @@ export function useIAPPurchase(initialIsPro: boolean): IAPState {
   const restore = useCallback(async () => {
     setStatus('restoring');
     try {
-      await restorePurchases();
+      const purchases = await getAvailablePurchases();
+      const hasActivePro = purchases.some(p =>
+        Object.values(SKU).includes(p.productId as typeof SKU[keyof typeof SKU])
+      );
+      if (hasActivePro) {
+        setIsPro(true);
+        Alert.alert('Restored', 'Your Trax Pro subscription has been restored.');
+      } else {
+        Alert.alert('Nothing to Restore', 'No previous Trax Pro purchase found on this Apple ID.');
+      }
     } catch (e: any) {
       Alert.alert('Restore Failed', e?.message || 'Could not restore purchases.');
+    } finally {
       setStatus('idle');
     }
-  }, [restorePurchases]);
+  }, [setIsPro]);
 
   return {
     isPro,

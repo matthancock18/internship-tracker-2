@@ -9,6 +9,8 @@ import { ActivityIndicator, Alert, AppState, Modal, ScrollView, StyleSheet, Text
 import { SP, Type } from '../../constants/designSystem';
 import { useIAPPurchase } from '../../hooks/useIAPPurchase';
 import { SKU } from '../../constants/iap';
+import { RatePicker } from '../../components/RatePicker';
+import type { Product } from 'react-native-iap';
 
 export const FREE_SCAN_LIMIT = 15;
 
@@ -28,117 +30,23 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const ApplicationsContext = React.createContext<any>(null);
 
-const WHEEL_ITEM_H = 44;
-const WHEEL_VISIBLE = 5; // must be odd
-
-function RatePicker({ unit, value, onChange }: { unit: 'day' | 'week'; value: number | null; onChange: (n: number) => void }) {
-  const maxRate = unit === 'day' ? 30 : 60;
-  const numbers = Array.from({ length: maxRate }, (_, i) => i + 1);
-  const scrollRef = useRef<ScrollView>(null);
-  const pad = WHEEL_ITEM_H * Math.floor(WHEEL_VISIBLE / 2);
-  const label = unit === 'day' ? '/day' : '/wk';
-
-  const scrollTo = useCallback((val: number, animated: boolean) => {
-    scrollRef.current?.scrollTo({ y: (val - 1) * WHEEL_ITEM_H, animated });
-  }, []);
-
-  useEffect(() => {
-    const initial = value ?? 1;
-    setTimeout(() => scrollTo(initial, false), 50);
-  }, [unit]);
-
-  const snapToNearest = (e: any) => {
-    const y = e.nativeEvent.contentOffset.y;
-    const idx = Math.round(y / WHEEL_ITEM_H);
-    const picked = Math.min(maxRate, Math.max(1, idx + 1));
-    onChange(picked);
-    // Snap scroll position to exact grid in case of slow drag release
-    scrollTo(picked, true);
-  };
-
-  return (
-    <View style={wheelStyles.wrapper}>
-      {/* fade top */}
-      <View style={wheelStyles.fadeTop} pointerEvents="none" />
-      {/* selection band */}
-      <View style={wheelStyles.selectionLine} pointerEvents="none" />
-      {/* fade bottom */}
-      <View style={wheelStyles.fadeBottom} pointerEvents="none" />
-
-      <ScrollView
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={WHEEL_ITEM_H}
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingVertical: pad }}
-        onMomentumScrollEnd={snapToNearest}
-        onScrollEndDrag={snapToNearest}
-        style={wheelStyles.scroll}>
-        {numbers.map(n => {
-          const selected = n === value;
-          return (
-            <TouchableOpacity
-              key={n}
-              style={wheelStyles.item}
-              onPress={() => { onChange(n); scrollTo(n, true); }}
-              activeOpacity={0.6}>
-              <Text style={[wheelStyles.itemText, selected && wheelStyles.itemTextSelected]}>
-                {n} {label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-const wheelStyles = StyleSheet.create({
-  wrapper: {
-    height: WHEEL_ITEM_H * WHEEL_VISIBLE,
-    overflow: 'hidden',
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 20,
+const INTRO_SCREENS = [
+  {
+    icon: '📋',
+    title: 'Track every application',
+    body: 'Add jobs as you apply — company, role, date, and status all in one place. No more lost spreadsheet rows.',
   },
-  scroll: { flex: 1 },
-  item: { height: WHEEL_ITEM_H, alignItems: 'center', justifyContent: 'center' },
-  itemText: { fontSize: 16, color: '#94A3B8', fontWeight: '500' },
-  itemTextSelected: { fontSize: 20, color: '#0EA5E9', fontWeight: 'bold' },
-  selectionLine: {
-    position: 'absolute',
-    top: WHEEL_ITEM_H * Math.floor(WHEEL_VISIBLE / 2),
-    left: 16,
-    right: 16,
-    height: WHEEL_ITEM_H,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#0EA5E9',
-    borderRadius: 8,
-    opacity: 0.35,
+  {
+    icon: '✉️',
+    title: 'Log your outreach',
+    body: 'Track cold emails and networking conversations. Know exactly who replied and who needs a follow-up.',
   },
-  fadeTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: WHEEL_ITEM_H * Math.floor(WHEEL_VISIBLE / 2),
-    zIndex: 1,
-    // gradient simulation via opacity bg
-    backgroundColor: 'rgba(248,250,252,0.65)',
+  {
+    icon: '🎯',
+    title: 'Hit your goal',
+    body: 'Set a target, pick a pace, and Trax keeps you on track. Get a nudge when you fall behind.',
   },
-  fadeBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: WHEEL_ITEM_H * Math.floor(WHEEL_VISIBLE / 2),
-    zIndex: 1,
-    backgroundColor: 'rgba(248,250,252,0.65)',
-  },
-});
+];
 
 export default function TabLayout() {
   return <TabLayoutInner />;
@@ -154,14 +62,14 @@ function TabLayoutInner() {
   const [scannedEmailImageUri, setScannedEmailImageUri] = useState<string | null>(null);
   const [emailScanSource, setEmailScanSource] = useState<'camera' | 'library' | null>(null);
   const [scansUsed, setScansUsed] = useState(0);
-  const scansUsedRef = useRef(0); // ref for race-condition-safe checks in async callbacks
+  const scansUsedRef = useRef(0);
   const [paywallVisible, setPaywallVisible] = useState(false);
-  const [initialIsPro] = useState(false); // loaded below after AsyncStorage read
+  const [initialIsPro] = useState(false);
   const iap = useIAPPurchase(initialIsPro);
   const { isPro, setIsPro } = iap;
 
-  // Onboarding & goal
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
+  const [introStep, setIntroStep] = useState(0); // 0-2 = intro screens, 3 = goal form
   const [goal, setGoal] = useState<{ target: number; endDate: string; dailyQuota: number; startDate: string } | null>(null);
   const [onboardingTarget, setOnboardingTarget] = useState('');
   const [onboardingRateUnit, setOnboardingRateUnit] = useState<'day' | 'week'>('day');
@@ -170,7 +78,6 @@ function TabLayoutInner() {
   const lastPaceCheckRef = useRef<string | null>(null);
   const dataLoadedRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
-  // hold latest goal/apps/emails for AppState handler without stale closure
   const goalRef = useRef<typeof goal>(null);
   const appsRef = useRef<any[]>([]);
   const mailsRef = useRef<any[]>([]);
@@ -213,7 +120,6 @@ function TabLayoutInner() {
         }
         if (savedIsPro === 'true') setIsPro(true);
 
-        // Mark loaded BEFORE triggering pace check so save effect doesn't stomp data
         dataLoadedRef.current = true;
 
         if (onboarded && parsedGoal) {
@@ -226,7 +132,6 @@ function TabLayoutInner() {
     loadAll();
   }, []);
 
-  // Listen for app coming to foreground to re-check pace once per day
   useEffect(() => {
     const sub = AppState.addEventListener('change', nextState => {
       if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
@@ -240,15 +145,12 @@ function TabLayoutInner() {
   }, []);
 
   useEffect(() => {
-    // Guard: don't write until initial load has populated state
     if (!dataLoadedRef.current) return;
     const saveData = async () => {
       try {
         await AsyncStorage.setItem('applications', JSON.stringify(applications));
         await AsyncStorage.setItem('emails', JSON.stringify(emails));
-      } catch {
-        // silent — UI remains correct, next save will retry
-      }
+      } catch {}
     };
     saveData();
   }, [applications, emails]);
@@ -268,9 +170,8 @@ function TabLayoutInner() {
     if (now > endDate) return;
 
     const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    // Use floor so day 0 (same day as goal creation) expects 0, not 1
     const daysPassed = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysPassed <= 0) return; // no expectation on day of setup
+    if (daysPassed <= 0) return;
     const expectedByNow = Math.floor((daysPassed / totalDays) * currentGoal.target);
     const actual = apps.length + mails.length;
     const behind = expectedByNow - actual;
@@ -289,17 +190,15 @@ function TabLayoutInner() {
     await AsyncStorage.setItem('lastPaceCheckDate', today);
   };
 
-  // Shared helper — atomically increments scan count via ref to avoid stale closures
-  const consumeScan = () => {
+  const consumeScan = useCallback(() => {
     const newCount = scansUsedRef.current + 1;
     scansUsedRef.current = newCount;
     setScansUsed(newCount);
     AsyncStorage.setItem('scansUsed', String(newCount));
-  };
+  }, []);
 
-  const isScanAllowed = () => !isPro && scansUsedRef.current >= FREE_SCAN_LIMIT;
+  const isScanLimitReached = () => !isPro && scansUsedRef.current >= FREE_SCAN_LIMIT;
 
-  // Shared picker launcher
   const launchImagePicker = async (
     source: 'camera' | 'library',
     onResult: (uri: string) => void,
@@ -312,7 +211,7 @@ function TabLayoutInner() {
       }
       try {
         const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
-        if (!result.canceled) { consumeScan(); onResult(result.assets[0].uri); }
+        if (!result.canceled) onResult(result.assets[0].uri);
       } catch (e) { Alert.alert('Error', String(e)); }
     } else {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -322,26 +221,24 @@ function TabLayoutInner() {
       }
       try {
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
-        if (!result.canceled) { consumeScan(); onResult(result.assets[0].uri); }
+        if (!result.canceled) onResult(result.assets[0].uri);
       } catch (e) { Alert.alert('Error', String(e)); }
     }
   };
 
-  // App scan picker
   useEffect(() => {
     if (!scanSource) return;
     const source = scanSource;
     setScanSource(null);
-    if (isScanAllowed()) { setPaywallVisible(true); return; }
+    if (isScanLimitReached()) { setPaywallVisible(true); return; }
     setTimeout(() => launchImagePicker(source, setScannedImageUri), 500);
   }, [scanSource]);
 
-  // Email scan picker
   useEffect(() => {
     if (!emailScanSource) return;
     const source = emailScanSource;
     setEmailScanSource(null);
-    if (isScanAllowed()) { setPaywallVisible(true); return; }
+    if (isScanLimitReached()) { setPaywallVisible(true); return; }
     setTimeout(() => launchImagePicker(source, setScannedEmailImageUri), 500);
   }, [emailScanSource]);
 
@@ -355,7 +252,7 @@ function TabLayoutInner() {
 
   const handleCompleteOnboarding = async () => {
     const target = parseInt(onboardingTarget, 10);
-    const rate = onboardingRate ?? 1; // default to 1 if user hasn't scrolled the picker
+    const rate = onboardingRate ?? 1;
     if (!target || target <= 0) {
       Alert.alert('Missing Info', 'Please enter how many applications you want to send.');
       return;
@@ -376,7 +273,6 @@ function TabLayoutInner() {
     try {
       let newGoal;
       if (goal) {
-        // Preserve original start/end dates — only update target and pace
         newGoal = { ...goal, target, dailyQuota: ratePerDay, rateUnit, rateValue };
       } else {
         newGoal = buildGoalFromRate(target, ratePerDay, rateUnit, rateValue);
@@ -392,6 +288,47 @@ function TabLayoutInner() {
 
   if (hasCompletedOnboarding === null) return null;
 
+  // ── Intro screens ──
+  if (!hasCompletedOnboarding && introStep < 3) {
+    const screen = INTRO_SCREENS[introStep];
+    const isLast = introStep === 2;
+    return (
+      <View style={introStyles.container}>
+        <View style={[introStyles.top, { paddingTop: insets.top + SP[4] }]}>
+          <Text style={introStyles.appName}>Trax</Text>
+          <View style={introStyles.dots}>
+            {INTRO_SCREENS.map((_, i) => (
+              <View key={i} style={[introStyles.dot, i === introStep && introStyles.dotActive]} />
+            ))}
+          </View>
+        </View>
+
+        <View style={introStyles.body}>
+          <Text style={introStyles.icon}>{screen.icon}</Text>
+          <Text style={introStyles.title}>{screen.title}</Text>
+          <Text style={introStyles.desc}>{screen.body}</Text>
+        </View>
+
+        <View style={[introStyles.bottom, { paddingBottom: insets.bottom + SP[6] }]}>
+          <TouchableOpacity
+            style={introStyles.nextBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIntroStep(introStep + 1);
+            }}>
+            <Text style={introStyles.nextBtnText}>{isLast ? 'Set My Goal →' : 'Next'}</Text>
+          </TouchableOpacity>
+          {!isLast && (
+            <TouchableOpacity onPress={() => setIntroStep(3)} style={introStyles.skipBtn}>
+              <Text style={introStyles.skipText}>Skip</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // ── Goal form ──
   if (!hasCompletedOnboarding) {
     const target = parseInt(onboardingTarget, 10);
     const rate = onboardingRate ?? 1;
@@ -435,11 +372,7 @@ function TabLayoutInner() {
             ))}
           </View>
 
-          <RatePicker
-            unit={onboardingRateUnit}
-            value={onboardingRate}
-            onChange={setOnboardingRate}
-          />
+          <RatePicker unit={onboardingRateUnit} value={onboardingRate} onChange={setOnboardingRate} />
 
           {finishDate && daysToFinish && (
             <View style={onboardingStyles.previewCard}>
@@ -458,6 +391,8 @@ function TabLayoutInner() {
   }
 
   const scansLeft = Math.max(0, FREE_SCAN_LIMIT - scansUsed);
+  const lifetimeProduct = (iap.products as Product[]).find(p => p.id === SKU.LIFETIME);
+  const lifetimePrice = lifetimeProduct?.displayPrice ?? '$12.00';
 
   return (
     <ApplicationsContext.Provider value={{
@@ -478,6 +413,7 @@ function TabLayoutInner() {
       isPro,
       setIsPro,
       iap,
+      consumeScan,
       dataLoaded: hasCompletedOnboarding !== null,
       showPaywall: () => setPaywallVisible(true),
     }}>
@@ -514,7 +450,7 @@ function TabLayoutInner() {
               }}>
               {iap.status === 'purchasing'
                 ? <ActivityIndicator color="#FFFFFF" />
-                : <Text style={paywallStyles.upgradeBtnText}>Get Trax Pro — $12 lifetime</Text>
+                : <Text style={paywallStyles.upgradeBtnText}>Get Trax Pro — {lifetimePrice} lifetime</Text>
               }
             </TouchableOpacity>
 
@@ -551,13 +487,13 @@ function TabLayoutInner() {
           name="index"
           options={{
             title: 'Applications',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+            tabBarIcon: ({ color }) => <IconSymbol size={28} name="briefcase.fill" color={color} />,
           }}
         />
         <Tabs.Screen
-          name="emails"
+          name="outreach"
           options={{
-            title: 'Emails',
+            title: 'Outreach',
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
           }}
         />
@@ -579,6 +515,24 @@ function TabLayoutInner() {
     </ApplicationsContext.Provider>
   );
 }
+
+const introStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0F172A' },
+  top: { paddingHorizontal: SP[6], paddingBottom: SP[4], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  appName: { ...Type.appBrand },
+  dots: { flexDirection: 'row', gap: 6, paddingBottom: 2 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)' },
+  dotActive: { backgroundColor: '#0EA5E9', width: 18 },
+  body: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SP[8] },
+  icon: { fontSize: 72, marginBottom: SP[6] },
+  title: { fontSize: 30, fontWeight: '700', color: '#FFFFFF', textAlign: 'center', marginBottom: SP[3] },
+  desc: { fontSize: 16, color: '#94A3B8', textAlign: 'center', lineHeight: 24 },
+  bottom: { paddingHorizontal: SP[6], paddingTop: SP[4] },
+  nextBtn: { backgroundColor: '#0EA5E9', borderRadius: 14, paddingVertical: SP[4], alignItems: 'center', marginBottom: SP[2] },
+  nextBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  skipBtn: { alignItems: 'center', paddingVertical: SP[2] },
+  skipText: { color: '#64748B', fontSize: 14 },
+});
 
 const onboardingStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0F172A' },

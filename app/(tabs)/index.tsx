@@ -11,7 +11,7 @@ import { ApplicationsContext } from './_layout';
 
 export default function ApplicationsScreen() {
   const insets = useSafeAreaInsets();
-  const { applications, setApplications, scannedImageUri, setScannedImageUri, setScanSource, scansLeft, isPro } = useContext(ApplicationsContext);
+  const { applications, setApplications, scannedImageUri, setScannedImageUri, setScanSource, scansLeft, isPro, consumeScan } = useContext(ApplicationsContext);
   const [modalVisible, setModalVisible] = useState(false);
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
@@ -323,6 +323,7 @@ export default function ApplicationsScreen() {
 
   // ── OCR Scan Handler ──
   const handleScan = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         { options: ['Cancel', 'Take Photo', 'Choose from Library'], cancelButtonIndex: 0 },
@@ -360,6 +361,7 @@ export default function ApplicationsScreen() {
       if (!detectedCompany && !detectedRole) {
         Alert.alert('Could not parse', "Text was detected but couldn't identify company or role. Please fill in the fields manually.");
       }
+      consumeScan();
     } catch (e) {
       Alert.alert('Scan failed', 'Something went wrong. Please try again or fill in manually.');
     }
@@ -389,7 +391,8 @@ export default function ApplicationsScreen() {
   };
 
   const handleDelete = (index: number) => {
-    Alert.alert('Delete Application', 'Are you sure you want to delete this application?', [
+    const name = applications[index]?.company || 'this application';
+    Alert.alert('Delete Application', `Delete ${name} application?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
