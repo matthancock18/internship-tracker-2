@@ -49,7 +49,6 @@ export default function ApplicationsScreen() {
   const [editFollowUpDate, setEditFollowUpDate] = useState('');
   const [editFollowUpSelectedDate, setEditFollowUpSelectedDate] = useState(new Date());
   const [editFollowUpPickerVisible, setEditFollowUpPickerVisible] = useState(false);
-
   const statuses = ['Applied', 'Interview', 'Offer', 'Rejected'];
   const statusColors = {
     'Applied': '#0EA5E9',

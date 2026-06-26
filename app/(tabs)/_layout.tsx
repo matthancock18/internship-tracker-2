@@ -396,9 +396,9 @@ function TabLayoutInner() {
 
   const scansLeft = Math.max(0, FREE_SCAN_LIMIT - scansUsed);
   const lifetimeProduct = (iap.products as Product[]).find(p => p.id === SKU.LIFETIME);
-  const lifetimePrice = lifetimeProduct?.displayPrice ?? '$12.00';
+  const lifetimePrice = lifetimeProduct?.displayPrice ?? '$15.00';
   const monthlyProduct = (iap.subscriptions as ProductSubscription[]).find(p => p.id === SKU.MONTHLY);
-  const monthlyPrice = monthlyProduct?.displayPrice ?? '$2.99';
+  const monthlyPrice = monthlyProduct?.displayPrice ?? '$1.99';
 
   return (
     <ApplicationsContext.Provider value={{

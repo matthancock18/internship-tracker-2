@@ -21,9 +21,9 @@ export default function AccountScreen() {
   const yearlyProduct = (subscriptions as ProductSubscription[]).find(p => p.id === SKU.YEARLY);
   const lifetimeProduct = (products as Product[]).find(p => p.id === SKU.LIFETIME);
 
-  const monthlyPrice = monthlyProduct?.displayPrice ?? '$2.99';
-  const yearlyPrice = yearlyProduct?.displayPrice ?? '$14.99';
-  const lifetimePrice = lifetimeProduct?.displayPrice ?? '$12.00';
+  const monthlyPrice = monthlyProduct?.displayPrice ?? '$1.99';
+  const yearlyPrice = yearlyProduct?.displayPrice ?? '$12.00';
+  const lifetimePrice = lifetimeProduct?.displayPrice ?? '$15.00';
 
   return (
     <ScrollView

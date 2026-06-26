@@ -44,6 +44,8 @@ export function RatePicker({ unit, value, onChange }: RatePickerProps) {
         showsVerticalScrollIndicator={false}
         snapToInterval={WHEEL_ITEM_H}
         decelerationRate="fast"
+        nestedScrollEnabled
+        directionalLockEnabled
         contentContainerStyle={{ paddingVertical: pad }}
         onMomentumScrollEnd={snapToNearest}
         onScrollEndDrag={snapToNearest}
