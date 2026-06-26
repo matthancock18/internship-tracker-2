@@ -151,9 +151,9 @@ export default function AccountScreen() {
       {dataLoaded && isPro && (
         <View style={styles.section}>
           <View style={styles.planCard}>
-            <Text style={styles.sectionCardTitle}>Manage Subscription</Text>
+            <Text style={styles.sectionCardTitle}>Pro Access</Text>
             <Text style={styles.planSub}>
-              To cancel or modify your subscription, go to Settings → Apple ID → Subscriptions.
+              Thank you for supporting Trax! If you have a monthly or yearly subscription, manage it at Settings → Apple ID → Subscriptions.
             </Text>
           </View>
         </View>

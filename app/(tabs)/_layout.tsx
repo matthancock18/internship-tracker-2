@@ -10,7 +10,7 @@ import { SP, Type } from '../../constants/designSystem';
 import { useIAPPurchase } from '../../hooks/useIAPPurchase';
 import { SKU } from '../../constants/iap';
 import { RatePicker } from '../../components/RatePicker';
-import type { Product } from 'react-native-iap';
+import type { Product, ProductSubscription } from 'react-native-iap';
 
 export const FREE_SCAN_LIMIT = 15;
 
@@ -177,13 +177,17 @@ function TabLayoutInner() {
     const behind = expectedByNow - actual;
 
     if (behind > 0) {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Pace Check',
-          body: `You're ${behind} application${behind !== 1 ? 's' : ''} behind your goal — keep going!`,
-        },
-        trigger: null,
-      });
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Pace Check',
+            body: `You're ${behind} application${behind !== 1 ? 's' : ''} behind your goal — keep going!`,
+          },
+          trigger: null,
+        });
+      } catch {
+        // Permission denied or scheduling failed — skip silently
+      }
     }
 
     lastPaceCheckRef.current = today;
@@ -393,6 +397,8 @@ function TabLayoutInner() {
   const scansLeft = Math.max(0, FREE_SCAN_LIMIT - scansUsed);
   const lifetimeProduct = (iap.products as Product[]).find(p => p.id === SKU.LIFETIME);
   const lifetimePrice = lifetimeProduct?.displayPrice ?? '$12.00';
+  const monthlyProduct = (iap.subscriptions as ProductSubscription[]).find(p => p.id === SKU.MONTHLY);
+  const monthlyPrice = monthlyProduct?.displayPrice ?? '$2.99';
 
   return (
     <ApplicationsContext.Provider value={{
@@ -461,7 +467,7 @@ function TabLayoutInner() {
                 setPaywallVisible(false);
                 iap.purchase(SKU.MONTHLY);
               }}>
-              <Text style={paywallStyles.altBtnText}>$2.99/month  ·  $14.99/year</Text>
+              <Text style={paywallStyles.altBtnText}>Or subscribe monthly · {monthlyPrice}/mo</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={paywallStyles.dismissBtn} onPress={() => setPaywallVisible(false)}>
