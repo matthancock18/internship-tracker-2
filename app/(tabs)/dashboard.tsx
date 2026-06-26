@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useContext, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SP, Type } from '../../constants/designSystem';
 import { RatePicker } from '../../components/RatePicker';
@@ -251,6 +251,7 @@ export default function DashboardScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setEditGoalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView style={styles.modalContainer} keyboardShouldPersistTaps="handled">
           <View style={styles.modalHandle} />
           <View style={styles.modalTitleRow}>
@@ -304,6 +305,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
           <View style={{ height: 40 }} />
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

@@ -21,7 +21,7 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren, Stat
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.message}>{this.state.message}</Text>
+        <Text style={styles.message}>Please restart the app. If this keeps happening, contact support.</Text>
         <TouchableOpacity style={styles.button} onPress={this.reset}>
           <Text style={styles.buttonText}>Try Again</Text>
         </TouchableOpacity>
