@@ -398,7 +398,8 @@ export default function ApplicationsScreen() {
     }
   };
 
-  const handleDelete = (index: number) => {
+  const handleDelete = (index: number | null) => {
+    if (index === null) return;
     const name = applications[index]?.company || 'this application';
     Alert.alert('Delete Application', `Delete ${name} application?`, [
       { text: 'Cancel', style: 'cancel' },

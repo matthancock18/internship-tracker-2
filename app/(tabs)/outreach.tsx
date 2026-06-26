@@ -172,7 +172,8 @@ export default function OutreachScreen() {
     setModalVisible(false);
   };
 
-  const handleDelete = (index) => {
+  const handleDelete = (index: number | null) => {
+    if (index === null) return;
     const name = emails[index]?.company || 'this entry';
     Alert.alert('Delete Outreach', `Delete outreach to ${name}?`, [
       { text: 'Cancel', style: 'cancel' },
