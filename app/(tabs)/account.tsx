@@ -178,13 +178,13 @@ export default function AccountScreen() {
           <Row label="Built for" value="Job seekers" />
           <TouchableOpacity
             style={[styles.row]}
-            onPress={() => Linking.openURL('https://yoursite.com/privacy')}>
+            onPress={() => Linking.openURL('https://matthancock18.github.io/internship-tracker-2/privacy.html')}>
             <Text style={styles.rowLabel}>Privacy Policy</Text>
             <Text style={[styles.rowValue, { color: '#0EA5E9' }]}>View →</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.row]}
-            onPress={() => Linking.openURL('https://yoursite.com/terms')}>
+            onPress={() => Linking.openURL('https://matthancock18.github.io/internship-tracker-2/terms.html')}>
             <Text style={styles.rowLabel}>Terms of Use</Text>
             <Text style={[styles.rowValue, { color: '#0EA5E9' }]}>View →</Text>
           </TouchableOpacity>
