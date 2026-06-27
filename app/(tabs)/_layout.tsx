@@ -351,7 +351,7 @@ function TabLayoutInner() {
             Tell us your target so we can help you stay on pace.
           </Text>
         </View>
-        <ScrollView style={onboardingStyles.form} keyboardShouldPersistTaps="handled">
+        <ScrollView style={onboardingStyles.form} keyboardShouldPersistTaps="always">
           <Text style={onboardingStyles.label}>How many applications + emails total?</Text>
           <TextInput
             style={onboardingStyles.input}

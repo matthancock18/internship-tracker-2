@@ -31,7 +31,7 @@ export function RatePicker({ unit, value, onChange }: RatePickerProps) {
     const idx = Math.round(y / WHEEL_ITEM_H);
     const picked = Math.min(maxRate, Math.max(1, idx + 1));
     onChange(picked);
-    scrollTo(picked, true);
+    // snapToInterval already handles the snap position — don't re-animate
   };
 
   return (
