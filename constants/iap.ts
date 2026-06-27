@@ -1,5 +1,5 @@
 export const SKU = {
-  MONTHLY: 'com.matthewhancock.trax.pro_monthly',
+  MONTHLY: 'com.matthewhancock.trax.monthly',
   YEARLY: 'com.matthewhancock.trax.pro_yearly',
   LIFETIME: 'com.matthewhancock.trax.pro_lifetime',
 } as const;
